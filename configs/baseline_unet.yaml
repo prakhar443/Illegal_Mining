@@ -1,0 +1,7 @@
+# Baseline: plain U-Net (segmentation-models-pytorch) — the dataset baseline competitor.
+# Swap model.name to attn_unet | deeplabv3p | unetpp | segformer for the other baselines.
+data: {task: 10class, batch_size: 12, subset_train: 4000, subset_val: 1000, oversample_rare: false, edge_from_mask: false}
+model: {name: unet, backbone: resnet34, pretrained: true}
+loss: {w_ce: 1.0, w_dice: 0.0, w_tversky: 0.0, w_boundary: 0.0, w_edge: 0.0}
+optim: {epochs: 40}
+run: {out_dir: runs/baseline_unet, save_best_metric: miou}

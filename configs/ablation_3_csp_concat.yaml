@@ -1,0 +1,6 @@
+# Ablation 3: CSP priors concatenated as input channels (the fast starter) + recall loss.
+data: {task: 10class, batch_size: 12, subset_train: 4000, subset_val: 1000, oversample_rare: true, rare_class_ids: [3, 6, 8], edge_from_mask: false}
+model: {name: spearnet, backbone: mobilenetv3_small_100, csp_mode: concat, use_edge_head: false}
+loss: {w_ce: 0.0, w_dice: 1.0, w_tversky: 1.0, w_boundary: 0.0, w_edge: 0.0, tversky_alpha: 0.3, tversky_beta: 0.7}
+optim: {epochs: 40}
+run: {out_dir: runs/ablation_3_csp_concat, save_best_metric: miou}

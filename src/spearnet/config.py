@@ -1,0 +1,186 @@
+"""Dataclass-based experiment configuration with YAML (de)serialization.
+
+A single ``Config`` object fully specifies a run: data, model, loss, optimisation and
+logging. YAML files in ``configs/`` only need to override the fields they care about;
+everything else falls back to the defaults defined here.
+"""
+from __future__ import annotations
+
+import dataclasses
+from dataclasses import dataclass, field, asdict
+from typing import Any, Dict, List, Optional
+
+import yaml
+
+
+# --------------------------------------------------------------------------------------
+# Task definitions: the LAMES 10-class space, and how to remap it to 3-class / binary.
+# --------------------------------------------------------------------------------------
+LAMES_CLASSES: List[str] = [
+    "other",                 # 0
+    "ASM site",              # 1  artisanal / small-scale (illegal-prone)
+    "LSM site",              # 2  large-scale
+    "heap leaching",         # 3
+    "mine facility",         # 4
+    "open pit",              # 5
+    "processing plant",      # 6
+    "stockyard",             # 7
+    "tailings storage",      # 8
+    "waste rock dump",       # 9
+]
+
+# 3-class {other, ASM, LSM}: ASM stays ASM; everything that is a large-scale structure
+# collapses to LSM; id 0 stays "other".
+THREE_CLASS_NAMES: List[str] = ["other", "ASM", "LSM"]
+THREE_CLASS_MAP: Dict[int, int] = {
+    0: 0,  # other -> other
+    1: 1,  # ASM   -> ASM
+    2: 2,  # LSM   -> LSM
+    3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2,  # all large-scale structures -> LSM
+}
+
+BINARY_NAMES: List[str] = ["background", "mining"]
+BINARY_MAP: Dict[int, int] = {0: 0, **{i: 1 for i in range(1, 10)}}
+
+TASK_REGISTRY: Dict[str, Dict[str, Any]] = {
+    "10class": {"num_classes": 10, "names": LAMES_CLASSES, "remap": None},
+    "3class": {"num_classes": 3, "names": THREE_CLASS_NAMES, "remap": THREE_CLASS_MAP},
+    "binary": {"num_classes": 2, "names": BINARY_NAMES, "remap": BINARY_MAP},
+}
+
+
+@dataclass
+class DataConfig:
+    hf_name: str = "maduschek/LAMES"
+    task: str = "10class"               # one of TASK_REGISTRY
+    image_size: int = 256
+    batch_size: int = 12
+    num_workers: int = 2
+    streaming: bool = False             # True => stream (no full 20GB download)
+    subset_train: Optional[int] = 4000  # cap #train patches for dev; None = full
+    subset_val: Optional[int] = 1000
+    subset_test: Optional[int] = None
+    oversample_rare: bool = True        # oversample patches containing rare classes
+    rare_class_ids: List[int] = field(default_factory=lambda: [3, 6, 8])
+    edge_from_mask: bool = True         # derive Sobel edge target from the mask
+
+
+@dataclass
+class ModelConfig:
+    name: str = "spearnet"              # spearnet | unet | attn_unet | deeplabv3p | unetpp
+    backbone: str = "mobilenetv3_small_100"  # timm name; or efficientnet_lite0
+    pretrained: bool = True
+    decoder_channels: List[int] = field(default_factory=lambda: [128, 64, 48, 32])
+    # CSP prior
+    csp_mode: str = "gate"             # gate | concat | none
+    csp_alpha_init: float = 1.0        # initial gate strength (per-scale, learnable)
+    use_edge_head: bool = True
+
+
+@dataclass
+class LossConfig:
+    # Compound loss weights.  ce > 0 reproduces the plain-CrossEntropy ablation.
+    w_ce: float = 0.0
+    w_dice: float = 1.0
+    w_tversky: float = 1.0
+    w_boundary: float = 0.5
+    w_edge: float = 0.5
+    tversky_alpha: float = 0.3         # alpha < beta => penalise false negatives (recall)
+    tversky_beta: float = 0.7
+    class_weights: Optional[List[float]] = None  # optional manual per-class CE weights
+    ignore_index: int = -100
+
+
+@dataclass
+class OptimConfig:
+    epochs: int = 40
+    lr: float = 3e-4
+    weight_decay: float = 1e-4
+    warmup_epochs: int = 2
+    min_lr: float = 1e-6
+    amp: bool = True                   # mixed precision
+    grad_clip: float = 1.0
+    accumulate: int = 1
+
+
+@dataclass
+class RunConfig:
+    seed: int = 42
+    out_dir: str = "runs/spearnet"
+    log_interval: int = 20
+    val_interval: int = 1              # epochs
+    save_best_metric: str = "miou"
+    device: str = "cuda"               # falls back to cpu automatically
+    resume: Optional[str] = None
+
+
+@dataclass
+class Config:
+    data: DataConfig = field(default_factory=DataConfig)
+    model: ModelConfig = field(default_factory=ModelConfig)
+    loss: LossConfig = field(default_factory=LossConfig)
+    optim: OptimConfig = field(default_factory=OptimConfig)
+    run: RunConfig = field(default_factory=RunConfig)
+
+    # ----- task helpers -----
+    @property
+    def num_classes(self) -> int:
+        return TASK_REGISTRY[self.data.task]["num_classes"]
+
+    @property
+    def class_names(self) -> List[str]:
+        return TASK_REGISTRY[self.data.task]["names"]
+
+    @property
+    def class_remap(self) -> Optional[Dict[int, int]]:
+        return TASK_REGISTRY[self.data.task]["remap"]
+
+    # ----- (de)serialization -----
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    def save(self, path: str) -> None:
+        with open(path, "w") as f:
+            yaml.safe_dump(self.to_dict(), f, sort_keys=False)
+
+    @classmethod
+    def load(cls, path: str) -> "Config":
+        with open(path, "r") as f:
+            raw = yaml.safe_load(f) or {}
+        return cls.from_dict(raw)
+
+    @classmethod
+    def from_dict(cls, raw: Dict[str, Any]) -> "Config":
+        def build(dc_type, data):
+            data = data or {}
+            valid = {f.name for f in dataclasses.fields(dc_type)}
+            unknown = set(data) - valid
+            if unknown:
+                raise ValueError(f"Unknown keys for {dc_type.__name__}: {sorted(unknown)}")
+            return dc_type(**{k: v for k, v in data.items() if k in valid})
+
+        return cls(
+            data=build(DataConfig, raw.get("data")),
+            model=build(ModelConfig, raw.get("model")),
+            loss=build(LossConfig, raw.get("loss")),
+            optim=build(OptimConfig, raw.get("optim")),
+            run=build(RunConfig, raw.get("run")),
+        )
+
+
+def load_config(path: Optional[str] = None, overrides: Optional[Dict[str, Any]] = None) -> Config:
+    """Load a config from YAML (or defaults) and apply dotted ``overrides``.
+
+    ``overrides`` keys use dotted paths, e.g. ``{"optim.epochs": 5, "data.task": "binary"}``.
+    """
+    cfg = Config.load(path) if path else Config()
+    if overrides:
+        d = cfg.to_dict()
+        for key, value in overrides.items():
+            cur = d
+            parts = key.split(".")
+            for p in parts[:-1]:
+                cur = cur[p]
+            cur[parts[-1]] = value
+        cfg = Config.from_dict(d)
+    return cfg

@@ -1,0 +1,54 @@
+# SPEAR-Net on the binary {background, mining} detector — direct comparison to the
+# LAMES dataset's own baseline.
+data:
+  hf_name: maduschek/LAMES
+  task: binary
+  image_size: 256
+  batch_size: 12
+  num_workers: 2
+  streaming: false
+  subset_train: 4000
+  subset_val: 1000
+  subset_test: null
+  oversample_rare: false
+  rare_class_ids: []
+  edge_from_mask: true
+
+model:
+  name: spearnet
+  backbone: mobilenetv3_small_100
+  pretrained: true
+  decoder_channels: [128, 64, 48, 32]
+  csp_mode: gate
+  csp_alpha_init: 1.0
+  use_edge_head: true
+
+loss:
+  w_ce: 0.0
+  w_dice: 1.0
+  w_tversky: 1.0
+  w_boundary: 0.5
+  w_edge: 0.5
+  tversky_alpha: 0.3
+  tversky_beta: 0.7
+  class_weights: null
+  ignore_index: -100
+
+optim:
+  epochs: 30
+  lr: 0.0003
+  weight_decay: 0.0001
+  warmup_epochs: 2
+  min_lr: 0.000001
+  amp: true
+  grad_clip: 1.0
+  accumulate: 1
+
+run:
+  seed: 42
+  out_dir: runs/spearnet_binary
+  log_interval: 20
+  val_interval: 1
+  save_best_metric: miou
+  device: cuda
+  resume: null
