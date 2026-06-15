@@ -12,6 +12,7 @@ segmentation-models-pytorch>=0.3.3
 datasets>=2.16
 huggingface-hub>=0.20
 Pillow>=9.0
+gdown>=5.1          # download a public Google Drive folder (private folders: mount in Colab)
 
 # Metrics / efficiency / viz
 scikit-learn>=1.3

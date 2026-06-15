@@ -51,12 +51,27 @@ TASK_REGISTRY: Dict[str, Dict[str, Any]] = {
 
 @dataclass
 class DataConfig:
-    hf_name: str = "maduschek/LAMES"
+    # ----- source selection -----
+    source: str = "local"               # "local" (zips/folder on disk) or "hf" (HuggingFace)
+    hf_name: str = "maduschek/LAMES"    # used when source == "hf"
+
+    # ----- local source (Google Drive zips extracted to disk) -----
+    local_root: Optional[str] = "data/lames"   # where extracted image/mask files live
+    drive_folder_url: Optional[str] = (
+        "https://drive.google.com/drive/folders/1A27Fn7HIL8UPQlx-xUmN8Dpzxl4SQsLh"
+    )
+    zip_glob: str = "*.zip"             # which archives to extract from the source folder
+    image_hint: Optional[List[str]] = None  # optional dir/name keywords forcing "image"
+    mask_hint: Optional[List[str]] = None   # optional dir/name keywords forcing "mask"
+    val_fraction: float = 0.1          # auto-split fractions when no train/val/test dirs
+    test_fraction: float = 0.0
+
+    # ----- common -----
     task: str = "10class"               # one of TASK_REGISTRY
     image_size: int = 256
     batch_size: int = 12
     num_workers: int = 2
-    streaming: bool = False             # True => stream (no full 20GB download)
+    streaming: bool = False             # (hf only) stream instead of full download
     subset_train: Optional[int] = 4000  # cap #train patches for dev; None = full
     subset_val: Optional[int] = 1000
     subset_test: Optional[int] = None

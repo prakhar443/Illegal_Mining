@@ -24,8 +24,10 @@ wandb/
 outputs/
 figures/
 
-# Data caches
-data/
+# Data caches (root-level dataset dirs only — NOT the src/spearnet/data package)
+/data/
+/data_*/
+*_extracted/
 *.cache
 .huggingface/
 

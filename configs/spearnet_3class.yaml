@@ -1,6 +1,12 @@
 # SPEAR-Net on the 3-class {other, ASM, LSM} task — the headline small-scale
 # (illegal-prone) vs large-scale policy result.
 data:
+  source: local
+  local_root: data/lames
+  drive_folder_url: "https://drive.google.com/drive/folders/1A27Fn7HIL8UPQlx-xUmN8Dpzxl4SQsLh"
+  zip_glob: "*.zip"
+  val_fraction: 0.1
+  test_fraction: 0.0
   hf_name: maduschek/LAMES
   task: 3class
   image_size: 256

@@ -1,6 +1,12 @@
 # Full SPEAR-Net on the 10-class LAMES mine-sector segmentation task.
 data:
-  hf_name: maduschek/LAMES
+  source: local                     # read the Google-Drive zips extracted to local_root
+  local_root: data/lames            # where prepare_data.py extracts the dataset
+  drive_folder_url: "https://drive.google.com/drive/folders/1A27Fn7HIL8UPQlx-xUmN8Dpzxl4SQsLh"
+  zip_glob: "*.zip"
+  val_fraction: 0.1                 # auto-split if the zips have no train/val/test dirs
+  test_fraction: 0.0
+  hf_name: maduschek/LAMES          # used only if source: hf
   task: 10class
   image_size: 256
   batch_size: 12

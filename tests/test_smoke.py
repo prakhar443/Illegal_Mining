@@ -138,3 +138,88 @@ def test_override_loader(tmp_path):
     assert cfg.optim.epochs == 3
     assert cfg.data.task == "binary"
     assert cfg.num_classes == 2
+
+
+# --------------------------------------------------------------------------------------
+# Local (Google Drive) dataset auto-detection
+# --------------------------------------------------------------------------------------
+def _write_pair(img_path, mask_path, mask_vals=(0, 1, 8)):
+    from PIL import Image
+    import os as _os
+
+    _os.makedirs(_os.path.dirname(img_path), exist_ok=True)
+    _os.makedirs(_os.path.dirname(mask_path), exist_ok=True)
+    Image.fromarray((np.random.rand(32, 32, 3) * 255).astype(np.uint8), "RGB").save(img_path)
+    m = np.zeros((32, 32), np.uint8)
+    for i, v in enumerate(mask_vals):
+        m[i * 4:(i + 1) * 4, :] = v
+    Image.fromarray(m, "L").save(mask_path)
+
+
+def test_discover_separate_folders(tmp_path):
+    from spearnet.data.local import discover_pairs
+    root = tmp_path / "ds"
+    for i in range(6):
+        _write_pair(str(root / "images" / f"tile_{i}.png"),
+                    str(root / "masks" / f"tile_{i}.png"))
+    pairs = discover_pairs(str(root))
+    assert len(pairs) == 6
+    for img, msk in pairs:
+        assert "image" in img and "mask" in msk
+
+
+def test_discover_suffix_same_folder(tmp_path):
+    from spearnet.data.local import discover_pairs
+    root = tmp_path / "ds2"
+    for i in range(5):
+        _write_pair(str(root / f"patch_{i}.png"),
+                    str(root / f"patch_{i}_mask.png"))
+    pairs = discover_pairs(str(root))
+    assert len(pairs) == 5
+
+
+def test_split_pairs_with_split_dirs(tmp_path):
+    from spearnet.data.local import discover_pairs, split_pairs
+    root = tmp_path / "ds3"
+    for split, n in [("train", 8), ("val", 3)]:
+        for i in range(n):
+            _write_pair(str(root / split / "images" / f"t{i}.png"),
+                        str(root / split / "masks" / f"t{i}.png"))
+    pairs = discover_pairs(str(root))
+    splits = split_pairs(pairs, val_fraction=0.1, test_fraction=0.0)
+    assert len(splits["train"]) == 8 and len(splits["val"]) == 3
+
+
+def test_extract_and_prepare(tmp_path):
+    import zipfile
+    from spearnet.data.local import prepare_local_dataset
+    # Build a zip that contains images/ + masks/
+    raw = tmp_path / "raw"
+    for i in range(10):
+        _write_pair(str(raw / "images" / f"x{i}.png"), str(raw / "masks" / f"x{i}.png"))
+    zpath = tmp_path / "src" / "lames_part1.zip"
+    os.makedirs(zpath.parent, exist_ok=True)
+    with zipfile.ZipFile(zpath, "w") as zf:
+        for p in raw.rglob("*.png"):
+            zf.write(p, arcname=str(p.relative_to(raw)))
+
+    splits = prepare_local_dataset(
+        source_dir=str(zpath.parent), work_dir=str(tmp_path / "work"),
+        val_fraction=0.2, test_fraction=0.0, seed=0,
+    )
+    total = sum(len(v) for v in splits.values())
+    assert total == 10
+    assert len(splits["val"]) == 2 and len(splits["train"]) == 8
+
+
+def test_local_dataset_pathexamples(tmp_path):
+    from spearnet.data.dataset import LAMESDataset
+    root = tmp_path / "ds4"
+    _write_pair(str(root / "images" / "a.png"), str(root / "masks" / "a.png"))
+    cfg = _cfg()
+    examples = [{"image": str(root / "images" / "a.png"),
+                 "mask": str(root / "masks" / "a.png")}]
+    ds = LAMESDataset(examples, cfg, train=False)
+    s = ds[0]
+    assert s["image"].shape == (3, 64, 64)
+    assert s["mask"].shape == (64, 64)

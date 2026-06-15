@@ -25,18 +25,40 @@ Every module is **independently ablatable**.
 
 ## 📦 Dataset — LAMES
 
-**LAMES** — *Large-scale And Mining-site sEgmentation dataset*
-(Hugging Face: [`maduschek/LAMES`](https://huggingface.co/datasets/maduschek/LAMES)).
+**LAMES** — *Large-scale And Mining-site sEgmentation dataset*. Cloudless Sentinel-2
+imagery over ~150 Chilean mining sites + Ghana ASM (galamsey), cut into 256×256 patches
+with masks pre-generated from GeoJSON. License CC-BY-4.0.
+
+The pipeline reads the dataset from **two interchangeable sources** (set `data.source`):
+
+### 1. Google Drive zips (default — `source: local`)
+
+The dataset ships as `.zip` archives in a Google Drive folder. The notebook **mounts
+Drive**, extracts the zips, and **auto-detects** the image/mask pairs — no fixed folder
+layout is assumed. Masks are recognised content-wise (low-cardinality, small-valued,
+single-channel rasters), so any of these layouts work out of the box:
+
+```
+images/ + masks/          |  train/images/ + train/masks/ (+ val/, test/)
+tile.png + tile_mask.png  |  any recursive mix of the above
+```
+
+```bash
+# Verify detection before training (prints a summary of detected pairs + mask ids)
+python scripts/prepare_data.py --source /content/drive/MyDrive/<your-folder> --work data/lames
+# (public folder alternative) — needs sharing set to "Anyone with the link":
+python scripts/prepare_data.py --drive-url "<folder-url>" --download-to data/_drive --work data/lames
+```
+
+If auto-pairing ever guesses wrong, pass `--image-hint images --mask-hint masks` (or set
+`data.image_hint` / `data.mask_hint` in the config).
+
+### 2. Hugging Face (`source: hf`)
 
 ```python
 from datasets import load_dataset
 ds = load_dataset("maduschek/LAMES")   # image (RGB) + mask (class-id) pairs
 ```
-
-- Cloudless Sentinel-2 imagery over ~150 Chilean mining sites + Ghana ASM (galamsey),
-  cut into 256×256 patches with masks pre-generated from GeoJSON.
-- **No shapefiles, no Earth Engine, no rasterization.**
-- License CC-BY-4.0.
 
 ### Class map (10-class mine-sector segmentation)
 
@@ -75,7 +97,10 @@ pip install -e .
 # Smoke test (random tensors, no dataset needed) — verifies the full pipeline
 python -m pytest tests/ -q
 
-# Train (downloads / streams LAMES from Hugging Face)
+# Prepare the dataset from your LAMES zips (extract + auto-detect pairs)
+python scripts/prepare_data.py --source /path/to/folder/with/zips --work data/lames
+
+# Train (uses data.source=local, data.local_root=data/lames by default)
 python scripts/train.py --config configs/spearnet_10class.yaml
 
 # Evaluate a checkpoint
