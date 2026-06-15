@@ -34,9 +34,14 @@ loss:
   w_tversky: 1.0
   w_boundary: 0.5
   w_edge: 0.5
+  w_focal: 1.0              # per-pixel signal for rare classes (prevents background collapse)
+  focal_gamma: 2.0
   tversky_alpha: 0.3
   tversky_beta: 0.7
+  present_only: true        # average region losses over present classes only
   class_weights: null
+  auto_class_weights: true  # inverse-frequency weights estimated from a sample of masks
+  auto_weight_samples: 800
   ignore_index: -100
 
 optim:

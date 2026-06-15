@@ -15,7 +15,7 @@ structures, with emphasis on **A**rtisanal & **S**mall-scale (illegal-prone) **M
 | Contribution | What it is |
 |---|---|
 | **Color-Spectral Prior (CSP) gate** | Greenness (ExG), Brightness, iron-oxide Redness, and an RGB Vegetation Index computed on the fly and fused as a *learned spatial-attention prior* that steers the network toward physically-plausible mining surfaces and away from bare-rock/shadow false alarms. Explainable. |
-| **Recall-weighted boundary stream** | An edge head with deep supervision + a compound loss (Dice + Tversky with β > α + boundary term + edge BCE) purpose-built for rare, small, fragmented structure classes. |
+| **Recall-weighted boundary stream** | An edge head with deep supervision + a compound loss (present-class Dice + Tversky with β > α + Focal + boundary term + edge BCE) with inverse-frequency class weights, purpose-built for rare, small, fragmented structure classes — and engineered to **not collapse to background** under LAMES's extreme imbalance. |
 | **Lightweight backbone** | A ≤ ~6 M-parameter MobileNetV3-Small / EfficientNet-lite0 encoder with explicit params / GFLOPs / T4-latency reporting for edge & free-tier deployment. |
 | **ASM-vs-LSM head** | An artisanal/small-scale (illegal-prone) vs large-scale (regulated) output of direct policy value. |
 
@@ -130,7 +130,8 @@ Depthwise-Separable U-Net / FPN Decoder  (progressive upsample + fuse)
         ├──► Segmentation head  (10-class | 3-class ASM/LSM/other | binary)
         └──► Edge/boundary head (deep supervision)
 
-Compound loss = Dice + recall-weighted Tversky(β>α) + Boundary(BD) + BCE(edge)
+Compound loss = present-class Dice + recall-weighted Tversky(β>α) + Focal
+                + Boundary(BD) + BCE(edge)   [+ inverse-frequency class weights]
 ```
 
 See [`src/spearnet/models/spearnet.py`](src/spearnet/models/spearnet.py).

@@ -171,6 +171,15 @@ class LAMESDataset(Dataset):
             sample["edge"] = sobel_edges(mask, self.num_classes)  # (1, H, W)
         return sample
 
+    def load_mask(self, idx: int) -> np.ndarray:
+        """Fast path: load & remap only the mask (no image decode / edge / augmentation).
+
+        Used for rare-class oversampling and class-weight estimation over large datasets.
+        """
+        ex = self.examples[idx]
+        raw_mask = _mask_to_array(ex[self.mask_key])
+        return remap_mask(raw_mask, self.remap, self.num_classes)
+
 
 # --------------------------------------------------------------------------------------
 # Loaders
@@ -196,17 +205,53 @@ def _materialise(split, cap: Optional[int], streaming: bool) -> List[Dict]:
 def _rare_oversample_indices(
     dataset: LAMESDataset, rare_ids: List[int], factor: int = 3
 ) -> List[int]:
-    """Build an index list that repeats samples containing rare classes ``factor`` times."""
+    """Build an index list that repeats samples containing rare classes ``factor`` times.
+
+    Uses the mask-only fast path and prints progress (a full LAMES scan touches 168k
+    small PNGs, so this can take a few minutes — done once before training).
+    """
     base = list(range(len(dataset)))
     extra: List[int] = []
     rare_set = set(rare_ids)
-    for i in range(len(dataset)):
-        # cheap check on the (already remapped) mask
-        m = dataset[i]["mask"]
-        present = set(torch.unique(m).tolist())
+    n = len(dataset)
+    print(f"[oversample] scanning {n} masks for rare classes {sorted(rare_set)} ...", flush=True)
+    for i in range(n):
+        present = set(np.unique(dataset.load_mask(i)).tolist())
         if present & rare_set:
             extra.extend([i] * (factor - 1))
+        if (i + 1) % 5000 == 0:
+            print(f"[oversample]   {i+1}/{n} scanned, {len(extra)} rare repeats so far", flush=True)
+    print(f"[oversample] done: +{len(extra)} oversampled indices (total {len(base)+len(extra)})", flush=True)
     return base + extra
+
+
+def estimate_class_weights(
+    dataset: LAMESDataset, num_classes: int, max_samples: int = 500, seed: int = 42
+) -> List[float]:
+    """Inverse-frequency class weights from a random sample of masks (median-frequency
+    balancing, clipped). Gives the CE/focal term a per-class scale that lifts rare classes.
+    """
+    rng = random.Random(seed)
+    n = len(dataset)
+    idxs = list(range(n))
+    rng.shuffle(idxs)
+    idxs = idxs[: min(max_samples, n)]
+
+    counts = np.zeros(num_classes, dtype=np.float64)
+    for i in idxs:
+        m = dataset.load_mask(i)
+        binc = np.bincount(m.reshape(-1), minlength=num_classes)[:num_classes]
+        counts += binc
+
+    freq = counts / counts.sum().clip(min=1)
+    freq = np.where(freq > 0, freq, freq[freq > 0].min() if (freq > 0).any() else 1.0)
+    med = np.median(freq[freq > 0]) if (freq > 0).any() else 1.0
+    weights = med / freq
+    weights = np.clip(weights, 0.5, 10.0)  # avoid extreme weights
+    weights = weights / weights.mean()     # normalise around 1
+    print(f"[class-weights] estimated from {len(idxs)} masks: "
+          f"{[round(float(w), 2) for w in weights]}", flush=True)
+    return weights.tolist()
 
 
 def _split_examples(cfg: Config) -> Dict[str, List[Dict]]:

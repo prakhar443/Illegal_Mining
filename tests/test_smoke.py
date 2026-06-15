@@ -90,6 +90,49 @@ def test_compound_loss():
     loss.backward()
 
 
+def test_focal_and_present_only_loss():
+    from spearnet.losses.compound import FocalLoss, DiceLoss, _present_mean
+    nc = 5
+    logits = torch.randn(2, nc, 16, 16, requires_grad=True)
+    # target uses only classes {0, 2} -> classes 1,3,4 are absent from the batch
+    target = torch.zeros(2, 16, 16, dtype=torch.long)
+    target[:, :8] = 2
+    fl = FocalLoss(gamma=2.0)(logits, target)
+    assert torch.isfinite(fl) and fl.item() >= 0
+    fl.backward()
+    # present-only Dice should ignore absent classes (mean over present {0,2} only)
+    d_present = DiceLoss(nc, present_only=True)(logits.detach(), target)
+    d_all = DiceLoss(nc, present_only=False)(logits.detach(), target)
+    assert torch.isfinite(d_present) and torch.isfinite(d_all)
+
+
+def test_estimate_class_weights():
+    from spearnet.data.dataset import LAMESDataset, estimate_class_weights
+    from PIL import Image
+    exs = []
+    for _ in range(8):
+        img = Image.fromarray((np.random.rand(32, 32, 3) * 255).astype(np.uint8), "RGB")
+        m = np.zeros((32, 32), np.uint8)
+        m[:4] = 3  # a rare class occupies a small area
+        exs.append({"image": img, "mask": Image.fromarray(m, "L")})
+    cfg = _cfg()
+    ds = LAMESDataset(exs, cfg, train=False)
+    w = estimate_class_weights(ds, cfg.num_classes, max_samples=8)
+    assert len(w) == cfg.num_classes
+    assert all(x > 0 for x in w)
+
+
+def test_compound_includes_focal_by_default():
+    cfg = _cfg(csp_mode="gate", use_edge_head=True)
+    model = build_model(cfg)
+    crit = CompoundLoss(cfg.num_classes, w_focal=1.0)
+    x = torch.rand(2, 3, 64, 64)
+    batch = {"image": x, "mask": torch.randint(0, cfg.num_classes, (2, 64, 64)),
+             "edge": torch.randint(0, 2, (2, 1, 64, 64)).float()}
+    loss, comps = crit(model(x), batch)
+    assert "focal" in comps and torch.isfinite(loss)
+
+
 def test_metrics():
     m = SegMetrics(3, ["a", "b", "c"])
     logits = torch.randn(2, 3, 16, 16)

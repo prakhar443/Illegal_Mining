@@ -100,9 +100,14 @@ class LossConfig:
     w_tversky: float = 1.0
     w_boundary: float = 0.5
     w_edge: float = 0.5
+    w_focal: float = 1.0               # focal term: per-pixel signal for rare classes
+    focal_gamma: float = 2.0
     tversky_alpha: float = 0.3         # alpha < beta => penalise false negatives (recall)
     tversky_beta: float = 0.7
-    class_weights: Optional[List[float]] = None  # optional manual per-class CE weights
+    present_only: bool = True          # average region losses over present classes only
+    class_weights: Optional[List[float]] = None  # manual per-class weights for CE/focal
+    auto_class_weights: bool = True    # estimate inverse-frequency weights from a sample
+    auto_weight_samples: int = 500     # #train masks sampled to estimate frequencies
     ignore_index: int = -100
 
 

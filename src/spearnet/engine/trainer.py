@@ -31,9 +31,7 @@ class Trainer:
         self.model = model.to(self.device)
         self.loaders = loaders
 
-        cw = None
-        if cfg.loss.class_weights is not None:
-            cw = torch.tensor(cfg.loss.class_weights, dtype=torch.float32, device=self.device)
+        cw = self._resolve_class_weights(cfg, loaders)
         self.criterion = CompoundLoss(
             num_classes=cfg.num_classes,
             w_ce=cfg.loss.w_ce,
@@ -41,8 +39,11 @@ class Trainer:
             w_tversky=cfg.loss.w_tversky,
             w_boundary=cfg.loss.w_boundary,
             w_edge=cfg.loss.w_edge,
+            w_focal=cfg.loss.w_focal,
+            focal_gamma=cfg.loss.focal_gamma,
             tversky_alpha=cfg.loss.tversky_alpha,
             tversky_beta=cfg.loss.tversky_beta,
+            present_only=cfg.loss.present_only,
             class_weights=cw,
             ignore_index=cfg.loss.ignore_index,
         ).to(self.device)
@@ -61,6 +62,22 @@ class Trainer:
         self.history = []
         if cfg.run.resume:
             self._load_checkpoint(cfg.run.resume)
+
+    def _resolve_class_weights(self, cfg, loaders):
+        """Return a per-class weight tensor (manual, auto-estimated, or None)."""
+        if cfg.loss.class_weights is not None:
+            w = cfg.loss.class_weights
+        elif cfg.loss.auto_class_weights and (cfg.loss.w_focal > 0 or cfg.loss.w_ce > 0):
+            from ..data.dataset import estimate_class_weights
+
+            train_ds = loaders["train"].dataset
+            w = estimate_class_weights(
+                train_ds, cfg.num_classes,
+                max_samples=cfg.loss.auto_weight_samples, seed=cfg.run.seed,
+            )
+        else:
+            return None
+        return torch.tensor(w, dtype=torch.float32, device=self.device)
 
     def _build_scheduler(self):
         total = self.cfg.optim.epochs * self.steps_per_epoch
@@ -108,10 +125,15 @@ class Trainer:
                 if cfg.optim.grad_clip:
                     self.scaler.unscale_(self.optimizer)
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), cfg.optim.grad_clip)
+                scale_before = self.scaler.get_scale()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 self.optimizer.zero_grad(set_to_none=True)
-                self.scheduler.step()
+                # Only advance the LR schedule if the optimizer actually stepped
+                # (AMP may skip a step while it calibrates the loss scale -> avoids the
+                # "lr_scheduler.step() before optimizer.step()" warning).
+                if self.scaler.get_scale() >= scale_before:
+                    self.scheduler.step()
 
             running += loss.item() * cfg.optim.accumulate
             if (it + 1) % cfg.run.log_interval == 0:
