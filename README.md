@@ -84,7 +84,7 @@ in Colab, select a **T4 GPU** runtime, and *Run all*. The notebook clones this r
 installs dependencies, streams a subset of LAMES, trains SPEAR-Net, and renders
 metrics + CSP explainability overlays.
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/prakhar443/illegal_mining/blob/claude/busy-euler-kswww1/notebooks/SPEARNet_LAMES_Colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/prakhar443/Illegal_Mining/blob/spearnet-colab/notebooks/SPEARNet_LAMES_Colab.ipynb)
 
 ### Local
 
