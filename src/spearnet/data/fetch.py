@@ -1,0 +1,382 @@
+"""Fetch & store the global mine-segmentation dataset (Methodology v4, Section 5).
+
+Dataset: SimonJasansky/mine-segmentation (Zenodo 10.5281/zenodo.14195737). The 35.6 MB
+annotation GeoPackage carries, per mining site, the exact Sentinel-2 STAC id (`s2_tile_id`),
+the verified mask polygons, the train/val/test `split`, and the metadata we train on —
+`minetype1` (surface/placer/...) and `minetype2` (Artisanal vs Industrial, the headline
+scale label).
+
+This module:
+  1. downloads the annotation GeoPackage from Zenodo (small, one-time);
+  2. (metadata mode) prints split / minetype counts so you can see the ASM signal;
+  3. subsets tiles by scale + a per-split cap;
+  4. fetches 6-band S2 L2A (B,G,R,NIR,SWIR1,SWIR2) from Microsoft Planetary Computer
+     (free, no credentials), rasterizes the mask polygons onto the tile grid, chips
+     2048 -> 256, and stores uint16 GeoTIFF image+mask pairs;
+  5. writes ``manifest.csv`` (img, mask, split, scale, minetype1, region, has_mining) that
+     the training dataset consumes — this decouples loading from any filename scheme and
+     carries the per-chip `scale` (for the artisanal/industrial task) and `region` (for the
+     geographic leave-one-region-out protocol).
+
+All heavy geospatial imports are lazy so the rest of the package imports without them.
+Install on Colab:
+    pip install pystac pystac-client planetary-computer stackstac rioxarray \
+                geopandas rasterio shapely pyproj pyogrio tqdm
+"""
+from __future__ import annotations
+
+import csv
+import os
+import time
+import urllib.request
+import zipfile
+from typing import Dict, List, Optional, Tuple
+
+ZENODO_ANNOT_URL = (
+    "https://zenodo.org/records/14195737/files/"
+    "mining_tiles_with_masks_and_bounding_boxes.gpkg?download=1"
+)
+# Some Zenodo revisions package the gpkg inside a zip; we handle both.
+ZENODO_FALLBACK_ZIP = "https://zenodo.org/records/14195737/files/mine_data.zip?download=1"
+
+# S2 L2A asset keys on Planetary Computer for our 6 bands, in output order.
+S2_ASSETS: List[str] = ["B02", "B03", "B04", "B08", "B11", "B12"]  # B,G,R,NIR,SWIR1,SWIR2
+
+_TILE_LAYER_CANDIDATES = ["tiles"]
+_MASK_LAYER_CANDIDATES = ["preferred_polygons", "maus_polygons", "tang_polygons"]
+_SCALE_COL_CANDIDATES = ["minetype2", "scale", "minetype_2", "type2"]
+
+
+# --------------------------------------------------------------------------------------
+# Download annotations
+# --------------------------------------------------------------------------------------
+def download_annotations(dest_dir: str = "mine_data") -> str:
+    """Download the annotation GeoPackage (idempotent). Returns the .gpkg path."""
+    os.makedirs(dest_dir, exist_ok=True)
+    gpkg = os.path.join(dest_dir, "mining_area_data.gpkg")
+    if os.path.exists(gpkg) and os.path.getsize(gpkg) > 1_000_000:
+        print(f"[annot] already present: {gpkg}")
+        return gpkg
+
+    print(f"Downloading annotations from Zenodo -> {gpkg} ...")
+    try:
+        _download(ZENODO_ANNOT_URL, gpkg)
+        return gpkg
+    except Exception as e:  # noqa: BLE001
+        print(f"[annot] direct gpkg download failed ({e}); trying zip fallback")
+        zpath = os.path.join(dest_dir, "mine_data.zip")
+        _download(ZENODO_FALLBACK_ZIP, zpath)
+        with zipfile.ZipFile(zpath) as zf:
+            zf.extractall(dest_dir)
+        for root, _, files in os.walk(dest_dir):
+            for f in files:
+                if f.endswith(".gpkg"):
+                    return os.path.join(root, f)
+        raise FileNotFoundError("No .gpkg found after extracting the Zenodo zip")
+
+
+def _download(url: str, path: str, retries: int = 4) -> None:
+    last = None
+    for i in range(retries):
+        try:
+            urllib.request.urlretrieve(url, path)
+            return
+        except Exception as e:  # noqa: BLE001
+            last = e
+            time.sleep(2 ** i)
+    raise last
+
+
+# --------------------------------------------------------------------------------------
+# Read / inspect the GeoPackage
+# --------------------------------------------------------------------------------------
+def _list_layers(gpkg: str) -> List[str]:
+    try:
+        import fiona
+
+        return list(fiona.listlayers(gpkg))
+    except Exception:
+        from pyogrio import list_layers
+
+        return [r[0] for r in list_layers(gpkg)]
+
+
+def _read_layer(gpkg: str, layer: str):
+    import geopandas as gpd
+
+    return gpd.read_file(gpkg, layer=layer)
+
+
+def _pick(cands: List[str], available: List[str]) -> Optional[str]:
+    for c in cands:
+        if c in available:
+            return c
+    return None
+
+
+def load_tiles(gpkg: str):
+    """Return (tiles_gdf, mask_gdf, scale_col, layers)."""
+    layers = _list_layers(gpkg)
+    tile_layer = _pick(_TILE_LAYER_CANDIDATES, layers) or layers[0]
+    mask_layer = _pick(_MASK_LAYER_CANDIDATES, layers)
+    tiles = _read_layer(gpkg, tile_layer)
+    masks = _read_layer(gpkg, mask_layer) if mask_layer else None
+    scale_col = _pick(_SCALE_COL_CANDIDATES, list(tiles.columns))
+    return tiles, masks, scale_col, layers
+
+
+def print_summary(gpkg: str) -> None:
+    tiles, masks, scale_col, layers = load_tiles(gpkg)
+    print(f"GeoPackage : {gpkg}")
+    print(f"Layers     : {layers}")
+    print(f"Tiles      : {len(tiles)} rows | columns: {list(tiles.columns)}")
+    if "split" in tiles:
+        print("\n--- split counts ---")
+        print(tiles["split"].value_counts())
+    if "minetype1" in tiles:
+        print("\n--- minetype1 (mine type) ---")
+        print(tiles["minetype1"].value_counts())
+    if scale_col:
+        print(f"\n--- {scale_col} (scale: artisanal vs industrial) ---")
+        print(tiles[scale_col].value_counts())
+        print(f"\nDetected scale column: {scale_col}")
+    else:
+        print("\n[warn] no scale column detected (minetype2). 3-class task unavailable.")
+
+
+# --------------------------------------------------------------------------------------
+# Geography helper (for leave-one-region-out)
+# --------------------------------------------------------------------------------------
+def continent_of(lon: float, lat: float) -> str:
+    """Very coarse continent bucket from lon/lat (good enough for region hold-out)."""
+    if lat < -60:
+        return "Antarctica"
+    if -170 <= lon < -30 and lat >= 7:
+        return "NorthAmerica"
+    if -90 <= lon < -30 and lat < 7:
+        return "SouthAmerica"
+    if -30 <= lon < 60 and lat >= 35:
+        return "Europe"
+    if -20 <= lon < 55 and lat < 35:
+        return "Africa"
+    if 25 <= lon < 60 and 12 <= lat < 45:
+        return "MiddleEast"
+    if 60 <= lon < 150 and lat >= 5:
+        return "Asia"
+    return "Oceania"
+
+
+# --------------------------------------------------------------------------------------
+# Fetch one tile's S2 window + rasterize its mask, then chip
+# --------------------------------------------------------------------------------------
+def _open_catalog():
+    import planetary_computer
+    import pystac_client
+
+    return pystac_client.Client.open(
+        "https://planetarycomputer.microsoft.com/api/stac/v1",
+        modifier=planetary_computer.sign_inplace,
+    )
+
+
+def fetch_tile_array(catalog, s2_id: str, centroid_lonlat, window_px: int, res: int,
+                     retries: int = 4):
+    """Return (array[6,H,W] float, transform, epsg) for the S2 window, or None."""
+    import numpy as np
+    import stackstac
+    from pyproj import Transformer
+
+    item = None
+    for i in range(retries):
+        try:
+            search = catalog.search(collections=["sentinel-2-l2a"], ids=[s2_id])
+            items = list(search.items())
+            item = items[0] if items else None
+            break
+        except Exception:  # noqa: BLE001
+            time.sleep(2 ** i)
+    if item is None:
+        return None
+
+    epsg = int(item.properties.get("proj:epsg", 0)) or _utm_epsg(*centroid_lonlat)
+    tx = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
+    cx, cy = tx.transform(centroid_lonlat[0], centroid_lonlat[1])
+    half = window_px * res / 2.0
+    bounds = (cx - half, cy - half, cx + half, cy + half)
+
+    for i in range(retries):
+        try:
+            stack = stackstac.stack(
+                [item], assets=S2_ASSETS, epsg=epsg, resolution=res,
+                bounds=bounds, dtype="float32", fill_value=0, rescale=False,
+            )
+            arr = stack.squeeze("time").compute()  # (band, y, x)
+            data = np.nan_to_num(arr.values).astype("float32")
+            transform = arr.rio.transform()
+            return data, transform, epsg
+        except Exception:  # noqa: BLE001
+            time.sleep(2 ** i)
+    return None
+
+
+def _utm_epsg(lon: float, lat: float) -> int:
+    zone = int((lon + 180) / 6) + 1
+    return (32600 if lat >= 0 else 32700) + zone
+
+
+def rasterize_mask(mask_gdf, tile_id, s2_id, epsg, transform, shape) -> "np.ndarray":
+    """Rasterize a tile's mask polygons onto the fetched grid (1 = mining)."""
+    import numpy as np
+    import rasterio.features
+
+    geoms = _tile_geometries(mask_gdf, tile_id, s2_id, epsg)
+    if not geoms:
+        return np.zeros(shape, dtype="uint8")
+    return rasterio.features.rasterize(
+        [(g, 1) for g in geoms], out_shape=shape, transform=transform,
+        fill=0, dtype="uint8",
+    )
+
+
+def _tile_geometries(mask_gdf, tile_id, s2_id, epsg) -> List:
+    if mask_gdf is None:
+        return []
+    sub = mask_gdf
+    for key, val in (("tile_id", tile_id), ("s2_tile_id", s2_id)):
+        if key in mask_gdf.columns:
+            m = mask_gdf[mask_gdf[key] == val]
+            if len(m):
+                sub = m
+                break
+    sub = sub.to_crs(epsg=epsg)
+    out = []
+    for g in sub.geometry:
+        if g is not None and not g.is_empty:
+            out.append(g)
+    return out
+
+
+# --------------------------------------------------------------------------------------
+# Orchestration
+# --------------------------------------------------------------------------------------
+def fetch_dataset(
+    out_dir: str = "chips",
+    annot_dir: str = "mine_data",
+    fetch_imagery: bool = False,
+    scale_filter: Optional[str] = None,     # None | "artisanal" | "industrial"
+    subset_per_split: Optional[int] = 60,   # cap tiles per split (None = all)
+    chip_size: int = 256,
+    window_px: int = 2048,
+    res: int = 10,
+    keep_empty_frac: float = 0.3,
+    splits: Tuple[str, ...] = ("train", "val", "test"),
+    seed: int = 42,
+) -> Optional[str]:
+    """Run the full pipeline. With ``fetch_imagery=False`` only prints metadata.
+
+    Returns the manifest.csv path when imagery is fetched, else None.
+    """
+    import random
+
+    gpkg = download_annotations(annot_dir)
+    print_summary(gpkg)
+    if not fetch_imagery:
+        print("\nFETCH_IMAGERY=False -> metadata only. Set scale_filter/subset, then "
+              "re-run with fetch_imagery=True.")
+        return None
+
+    tiles, masks, scale_col, _ = load_tiles(gpkg)
+    tiles = tiles.to_crs(epsg=4326)
+    if scale_filter and scale_col:
+        tiles = tiles[tiles[scale_col].str.lower() == scale_filter.lower()]
+        print(f"[subset] scale_filter={scale_filter} -> {len(tiles)} tiles")
+
+    rng = random.Random(seed)
+    catalog = _open_catalog()
+    os.makedirs(out_dir, exist_ok=True)
+    manifest_path = os.path.join(out_dir, "manifest.csv")
+    write_header = not os.path.exists(manifest_path)
+    fout = open(manifest_path, "a", newline="")
+    writer = csv.writer(fout)
+    if write_header:
+        writer.writerow(["img", "mask", "split", "scale", "minetype1", "region",
+                         "has_mining", "tile_id", "s2_tile_id"])
+
+    counts = {s: 0 for s in splits}
+    for split in splits:
+        sub = tiles[tiles["split"] == split] if "split" in tiles else tiles
+        rows = list(sub.itertuples())
+        rng.shuffle(rows)
+        if subset_per_split is not None:
+            rows = rows[:subset_per_split]
+        print(f"\n[{split}] fetching {len(rows)} tiles ...")
+        for r in rows:
+            n = _process_tile(r, masks, scale_col, catalog, out_dir, split, writer,
+                              chip_size, window_px, res, keep_empty_frac, rng)
+            counts[split] += n
+            fout.flush()
+
+    fout.close()
+    print(f"\nDone. Chips per split: {counts}")
+    print(f"Manifest -> {manifest_path}")
+    return manifest_path
+
+
+def _process_tile(r, masks, scale_col, catalog, out_dir, split, writer,
+                  chip_size, window_px, res, keep_empty_frac, rng) -> int:
+    import numpy as np
+    import rasterio
+    from rasterio.transform import Affine
+
+    geom = r.geometry
+    if geom is None:
+        return 0
+    centroid = (geom.centroid.x, geom.centroid.y)
+    region = continent_of(*centroid)
+    scale = (getattr(r, scale_col, "") or "").lower() if scale_col else ""
+    minetype1 = getattr(r, "minetype1", "") or ""
+    tile_id = getattr(r, "tile_id", getattr(r, "Index", "t"))
+    s2_id = getattr(r, "s2_tile_id", "")
+
+    fetched = fetch_tile_array(catalog, s2_id, centroid, window_px, res)
+    if fetched is None:
+        print(f"  [skip] {tile_id}: no imagery for {s2_id}")
+        return 0
+    img, transform, epsg = fetched
+    H, W = img.shape[-2:]
+    mask = rasterize_mask(masks, tile_id, s2_id, epsg, transform, (H, W))
+
+    split_dir = os.path.join(out_dir, split)
+    os.makedirs(split_dir, exist_ok=True)
+
+    img_u16 = np.clip(img, 0, 65535).astype("uint16")
+    n_written = 0
+    for yi in range(0, H - chip_size + 1, chip_size):
+        for xi in range(0, W - chip_size + 1, chip_size):
+            cmask = mask[yi:yi + chip_size, xi:xi + chip_size]
+            has = bool(cmask.any())
+            if not has and rng.random() > keep_empty_frac:
+                continue
+            cimg = img_u16[:, yi:yi + chip_size, xi:xi + chip_size]
+            base = f"{tile_id}_{xi}_{yi}"
+            ip = os.path.join(split_dir, base + "_img.tif")
+            mp = os.path.join(split_dir, base + "_mask.tif")
+            ctransform = transform * Affine.translation(xi, yi)
+            _write_tif(ip, cimg, epsg, ctransform)
+            _write_tif(mp, cmask[None], epsg, ctransform)
+            writer.writerow([ip, mp, split, scale, minetype1, region,
+                             int(has), tile_id, s2_id])
+            n_written += 1
+    return n_written
+
+
+def _write_tif(path: str, arr, epsg: int, transform) -> None:
+    import rasterio
+
+    count, h, w = arr.shape
+    with rasterio.open(
+        path, "w", driver="GTiff", height=h, width=w, count=count,
+        dtype=arr.dtype, crs=f"EPSG:{epsg}", transform=transform,
+        compress="deflate",
+    ) as dst:
+        dst.write(arr)

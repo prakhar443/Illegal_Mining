@@ -1,0 +1,66 @@
+# SPEAR-Net v4 — 3-class {background, artisanal, industrial} on the global
+# mine-segmentation dataset. The headline small-scale (illegal-prone) vs industrial result,
+# stratified on the verified `scale` (minetype2) label. Artisanal (~329 tiles) is the rare
+# class -> recall machinery (focal + Tversky beta>alpha + oversampling + class weights).
+data:
+  source: mining
+  chips_root: chips
+  manifest: chips/manifest.csv
+  bands: 6
+  band_order: [B, G, R, NIR, SWIR1, SWIR2]
+  reflectance_scale: 10000.0
+  task: scale3
+  image_size: 256
+  batch_size: 10
+  num_workers: 2
+  subset_train: null
+  subset_val: null
+  subset_test: null
+  oversample_rare: true        # oversample artisanal chips
+  holdout_regions: []          # e.g. [Asia, Oceania] for leave-one-region-out
+  edge_from_mask: true
+
+model:
+  name: spearnet
+  backbone: mobilenetv3_small_100
+  pretrained: true
+  decoder_channels: [128, 64, 48, 32]
+  prior_type: pisp
+  csp_mode: gate
+  csp_alpha_init: 1.0
+  use_edge_head: true
+
+loss:
+  w_ce: 0.0
+  w_dice: 1.0
+  w_tversky: 1.0
+  w_boundary: 0.5
+  w_edge: 0.5
+  w_focal: 1.0
+  focal_gamma: 2.0
+  tversky_alpha: 0.3
+  tversky_beta: 0.7
+  present_only: true
+  class_weights: null
+  auto_class_weights: true
+  auto_weight_samples: 800
+  ignore_index: -100
+
+optim:
+  epochs: 60
+  lr: 0.0003
+  weight_decay: 0.0001
+  warmup_epochs: 3
+  min_lr: 0.000001
+  amp: true
+  grad_clip: 1.0
+  accumulate: 1
+
+run:
+  seed: 42
+  out_dir: runs/v4_scale3
+  log_interval: 20
+  val_interval: 1
+  save_best_metric: miou
+  device: cuda
+  resume: null

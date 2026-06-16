@@ -38,14 +38,25 @@ def colorize_mask(mask: np.ndarray) -> np.ndarray:
     return pal[mask]
 
 
-def _to_hwc_uint8(image: torch.Tensor) -> np.ndarray:
+def _to_hwc_uint8(image: torch.Tensor, rgb_idx=None) -> np.ndarray:
+    """Convert a (C,H,W) tensor to an (H,W,3) uint8 display image.
+
+    For multi-band (e.g. 6-band S2 in B,G,R,NIR,SWIR1,SWIR2 order) pass ``rgb_idx`` to
+    pick the visible bands; defaults to [2,1,0] for >3 bands (R,G,B) else first 3.
+    A 2–98 percentile stretch makes Sentinel-2 reflectance visible.
+    """
     img = image.detach().cpu().float()
-    if img.dim() == 3 and img.shape[0] == 3:
+    if img.dim() == 3:
+        c = img.shape[0]
+        if rgb_idx is None:
+            rgb_idx = [2, 1, 0] if c >= 6 else list(range(min(3, c)))
+        img = img[rgb_idx] if c > 1 else img.repeat(3, 1, 1)
         img = img.permute(1, 2, 0)
-    img = img.numpy()
-    if img.max() <= 1.5:
-        img = img * 255.0
-    return img.clip(0, 255).astype(np.uint8)
+    arr = img.numpy()
+    lo, hi = np.percentile(arr, 2), np.percentile(arr, 98)
+    if hi > lo:
+        arr = (arr - lo) / (hi - lo)
+    return (arr.clip(0, 1) * 255).astype(np.uint8)
 
 
 def overlay_csp_attention(

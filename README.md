@@ -1,12 +1,12 @@
-# SPEAR-Net
+# SPEAR-Net (v4)
 
 **S**pectral-**P**rior **E**dge-**A**ware **R**ecall-optimized **Net**work — a lightweight,
-color-prior-guided, recall-optimized network for fine-grained segmentation of mining
-structures, with emphasis on **A**rtisanal & **S**mall-scale (illegal-prone) **M**ining.
+**spectral-prior-guided**, recall-optimized network for detecting **A**rtisanal &
+**S**mall-scale (illegal-prone) **M**ining in **global Sentinel-2 imagery**.
 
-> Zero-preprocessing pipeline on the ready-made **LAMES** image+mask dataset, single-image
-> multi-class semantic segmentation, designed to train end-to-end on free Google Colab
-> (T4, 15 GB).
+> Trains end-to-end on free Google Colab (T4, 15 GB) from a **35.6 MB verified annotation
+> set** plus an on-demand **subset** of 6-band Sentinel-2 fetched from Microsoft Planetary
+> Computer — no 20 GB download, and a real, verified artisanal-vs-industrial label.
 
 ---
 
@@ -14,64 +14,52 @@ structures, with emphasis on **A**rtisanal & **S**mall-scale (illegal-prone) **M
 
 | Contribution | What it is |
 |---|---|
-| **Color-Spectral Prior (CSP) gate** | Greenness (ExG), Brightness, iron-oxide Redness, and an RGB Vegetation Index computed on the fly and fused as a *learned spatial-attention prior* that steers the network toward physically-plausible mining surfaces and away from bare-rock/shadow false alarms. Explainable. |
-| **Recall-weighted boundary stream** | An edge head with deep supervision + a compound loss (present-class Dice + Tversky with β > α + Focal + boundary term + edge BCE) with inverse-frequency class weights, purpose-built for rare, small, fragmented structure classes — and engineered to **not collapse to background** under LAMES's extreme imbalance. |
-| **Lightweight backbone** | A ≤ ~6 M-parameter MobileNetV3-Small / EfficientNet-lite0 encoder with explicit params / GFLOPs / T4-latency reporting for edge & free-tier deployment. |
-| **ASM-vs-LSM head** | An artisanal/small-scale (illegal-prone) vs large-scale (regulated) output of direct policy value. |
+| **PISP gate** (Physically-Informed Spectral Prior) | NDVI (vegetation loss), MNDWI (mining ponds), NDTI (turbidity), BSI (bare soil/tailings) computed on the fly from Sentinel-2 bands and fused as a *learned spatial-attention prior* that steers the network toward physically-plausible mining and suppresses bare-rock/water false alarms. Explainable. |
+| **Recall-weighted boundary stream** | An edge head with deep supervision + a compound loss (present-class Dice + Tversky β>α + Focal + boundary + edge BCE) with inverse-frequency class weights, built for small, fragmented artisanal sites — and engineered to **not collapse to background** under heavy imbalance. |
+| **Lightweight backbone** | A ≤ ~6 M-parameter MobileNetV3-Small / EfficientNet-lite0 encoder (stem adapted 3→6 bands), with explicit params / GFLOPs / T4-latency reporting for edge & free-tier deployment. |
+| **Artisanal-vs-industrial head** | A small-scale (illegal-prone) vs industrial (regulated) output of direct policy value, on **verified** labels. |
+| **Cross-region generalization** | A geographic leave-one-region-out protocol (train on some continents, test on held-out ones) enabled by the global dataset. |
 
 Every module is **independently ablatable**.
 
 ---
 
-## 📦 Dataset — LAMES
+## 📦 Dataset — global mine-segmentation
 
-**LAMES** — *Large-scale And Mining-site sEgmentation dataset*. Cloudless Sentinel-2
-imagery over ~150 Chilean mining sites + Ghana ASM (galamsey), cut into 256×256 patches
-with masks pre-generated from GeoJSON. License CC-BY-4.0.
+`SimonJasansky/mine-segmentation` (Zenodo [10.5281/zenodo.14195737](https://doi.org/10.5281/zenodo.14195737),
+Maastricht University). 1,210 mining sites worldwide; masks from Maus et al. (2022) + Tang
+et al. (2023), **manually re-validated** (accuracy 99.78, precision 99.22, recall 95.71).
+License CC-BY-SA-4.0.
 
-The pipeline reads the dataset from **two interchangeable sources** (set `data.source`):
+- **Annotations**: a 35.6 MB GeoPackage — per-site Sentinel-2 STAC id (`s2_tile_id`), mask
+  polygons, train/val/test `split`, and metadata: `minetype1` (surface/placer/underground/
+  brine) and **`minetype2` = Artisanal vs Industrial** (the headline scale label;
+  Artisanal ≈ 329 tiles, Industrial ≈ 1,185).
+- **Imagery**: fetched on demand from **Microsoft Planetary Computer** (Sentinel-2 L2A,
+  free, no credentials) — 6 bands **B, G, R, NIR, SWIR1, SWIR2** — and chipped 2048→256.
+  You fetch only a subset → a few GB, cached once to Drive.
 
-### 1. Google Drive zips (default — `source: local`)
-
-The dataset ships as `.zip` archives in a Google Drive folder. The notebook **mounts
-Drive**, extracts the zips, and **auto-detects** the image/mask pairs — no fixed folder
-layout is assumed. Masks are recognised content-wise (low-cardinality, small-valued,
-single-channel rasters), so any of these layouts work out of the box:
-
-```
-images/ + masks/          |  train/images/ + train/masks/ (+ val/, test/)
-tile.png + tile_mask.png  |  any recursive mix of the above
-```
-
-```bash
-# Verify detection before training (prints a summary of detected pairs + mask ids)
-python scripts/prepare_data.py --source /content/drive/MyDrive/<your-folder> --work data/lames
-# (public folder alternative) — needs sharing set to "Anyone with the link":
-python scripts/prepare_data.py --drive-url "<folder-url>" --download-to data/_drive --work data/lames
-```
-
-If auto-pairing ever guesses wrong, pass `--image-hint images --mask-hint masks` (or set
-`data.image_hint` / `data.mask_hint` in the config).
-
-### 2. Hugging Face (`source: hf`)
+### Fetch & store (one-time)
 
 ```python
-from datasets import load_dataset
-ds = load_dataset("maduschek/LAMES")   # image (RGB) + mask (class-id) pairs
+from spearnet.data.fetch import fetch_dataset
+# metadata only — prints split / minetype / artisanal-vs-industrial counts
+fetch_dataset(fetch_imagery=False)
+# fetch a subset of 6-band S2 -> uint16 GeoTIFF chips + manifest.csv (scale + region)
+fetch_dataset(out_dir="chips", fetch_imagery=True, scale_filter="artisanal", subset_per_split=None)
+fetch_dataset(out_dir="chips", fetch_imagery=True, scale_filter="industrial", subset_per_split=80)
 ```
 
-### Class map (10-class mine-sector segmentation)
+The pipeline reads chips via `chips/manifest.csv`, which carries each chip's verified
+`scale` and `region`. Tasks (set `data.task`):
 
-| id | class | id | class |
-|----|-------|----|-------|
-| 0 | other (background) | 5 | open pit |
-| 1 | ASM site (artisanal/small-scale) | 6 | processing plant |
-| 2 | LSM site (large-scale) | 7 | stockyard |
-| 3 | heap leaching | 8 | tailings storage facility |
-| 4 | mine facility | 9 | waste rock dump |
+| task | classes |
+|------|---------|
+| `binary` | `{background, mining}` — robust detector |
+| `scale3` | `{background, artisanal, industrial}` — the headline (mining pixels relabelled by the chip's verified scale) |
 
-Supported tasks (set in config): `10class`, `3class` (`{other, ASM, LSM}`), `binary`
-(`{background, mining}`).
+> Legacy v3 LAMES sources (`source: local` Drive zips, or `source: hf`) are still supported
+> for the RGB-only ablation; see git history / configs `spearnet_*.yaml`.
 
 ---
 
@@ -97,18 +85,19 @@ pip install -e .
 # Smoke test (random tensors, no dataset needed) — verifies the full pipeline
 python -m pytest tests/ -q
 
-# Prepare the dataset from your LAMES zips (extract + auto-detect pairs)
-python scripts/prepare_data.py --source /path/to/folder/with/zips --work data/lames
+# 1) Inspect annotations (35.6 MB) — prints artisanal/industrial counts
+python -c "from spearnet.data.fetch import fetch_dataset; fetch_dataset(fetch_imagery=False)"
 
-# Train (uses data.source=local, data.local_root=data/lames by default)
-python scripts/train.py --config configs/spearnet_10class.yaml
+# 2) Fetch a 6-band Sentinel-2 subset -> chips + manifest (cached once)
+python scripts/fetch_data.py --scale artisanal --subset 0   --out chips   # all artisanal
+python scripts/fetch_data.py --scale industrial --subset 80 --out chips   # capped industrial
 
-# Evaluate a checkpoint
-python scripts/evaluate.py --config configs/spearnet_10class.yaml \
-    --checkpoint runs/spearnet_10class/best.pt
+# 3) Train (binary detector or artisanal/industrial)
+python scripts/train.py --config configs/v4_scale3.yaml
 
-# Efficiency benchmark (params / GFLOPs / latency / peak VRAM)
-python scripts/benchmark.py --config configs/spearnet_10class.yaml
+# Evaluate / benchmark
+python scripts/evaluate.py --config configs/v4_scale3.yaml --checkpoint runs/v4_scale3/best.pt
+python scripts/benchmark.py --config configs/v4_scale3.yaml
 ```
 
 ---
@@ -116,18 +105,18 @@ python scripts/benchmark.py --config configs/spearnet_10class.yaml
 ## 🧱 Architecture
 
 ```
-Input patch (RGB, 256x256x3)
+Input patch (S2: B,G,R,NIR,SWIR1,SWIR2 — 256x256x6)
         │
-        ├──► Color-Spectral Prior  ── ExG, Brightness, Redness, RGB-VI
+        ├──► PISP Prior  ── NDVI, MNDWI, NDTI, BSI
         │        1x1 + depthwise 3x3 -> sigmoid = attention map (per decoder scale)
         │
         ▼
-Lightweight Encoder (MobileNetV3-S / EfficientNet-lite0, ImageNet-pretrained)  s2..s5
+Lightweight Encoder (MobileNetV3-S / EfficientNet-lite0, stem 3→6 bands)  s2..s5
         │
         ▼   gated skips:  F = F_skip * (1 + alpha * attn)
 Depthwise-Separable U-Net / FPN Decoder  (progressive upsample + fuse)
         │
-        ├──► Segmentation head  (10-class | 3-class ASM/LSM/other | binary)
+        ├──► Segmentation head  (binary mining | 3-class artisanal/industrial/bg)
         └──► Edge/boundary head (deep supervision)
 
 Compound loss = present-class Dice + recall-weighted Tversky(β>α) + Focal
@@ -138,39 +127,44 @@ See [`src/spearnet/models/spearnet.py`](src/spearnet/models/spearnet.py).
 
 ---
 
-## 🔬 Color-Spectral Prior (CSP)
+## 🔬 Physically-Informed Spectral Prior (PISP)
 
-Computed on the fly from the RGB patch (no preprocessing):
+Computed on the fly from the Sentinel-2 bands (`prior_type: pisp`):
 
 | Prior | Formula | Captures |
 |---|---|---|
-| ExG | `2G − R − B` | residual vegetation / clearance contrast |
-| Brightness | `(R+G+B)/3` | exposed ground, structures, processing plants |
-| Redness | `(R−G)/(R+G)` | iron-oxide / reddish tailings & waste rock |
-| RGB-VI | `(G²−R·B)/(G²+R·B)` | vegetation context |
+| NDVI | `(NIR−R)/(NIR+R)` | forest/scrub → cleared-land loss |
+| MNDWI | `(G−SWIR1)/(G+SWIR1)` | diagnostic mining ponds / lagoons |
+| NDTI | `(R−G)/(R+G)` | turbid / muddy mining water |
+| BSI | `((SWIR1+R)−(NIR+B))/((SWIR1+R)+(NIR+B))` | bare soil / tailings |
 
-Two integration modes (ablation): **`concat`** (priors appended as input channels — the
-fast starter) and the stronger **`gate`** (priors → tiny conv → sigmoid attention map that
-modulates each decoder skip). See [`src/spearnet/models/csp.py`](src/spearnet/models/csp.py).
+Two integration modes: **`concat`** (priors as extra input channels) and the stronger
+**`gate`** (priors → tiny conv → sigmoid attention modulating each decoder skip). Set
+`prior_type: csp` (+ `bands: 3`) for the **RGB-only ablation** that isolates the SWIR
+contribution. See [`src/spearnet/models/csp.py`](src/spearnet/models/csp.py) and
+[`src/spearnet/data/priors.py`](src/spearnet/data/priors.py).
 
 ---
 
 ## 🧪 Experiments
 
-**Baselines** (all Colab-runnable, via `segmentation-models-pytorch`): plain U-Net,
-Attention U-Net, DeepLabV3+ (MobileNet), U-Net++. Selectable with `model.name`.
+**Baselines** (Colab-runnable, via `segmentation-models-pytorch`): plain U-Net, Attention
+U-Net, DeepLabV3+, U-Net++. Selectable with `model.name`.
 
-**Ablations** (toggles in config):
+**Ablations**:
 1. Backbone + plain decoder, CrossEntropy (no prior, no recall loss).
 2. + recall-weighted compound loss.
-3. + CSP `concat`.
-4. + CSP `gate` + edge head = **full SPEAR-Net**.
-5. (optional) CSP-RGB vs spectral-PISP on a multiband subset.
-6. Task variants: 10-class / 3-class ASM-LSM / binary.
+3. + PISP `concat`.
+4. + PISP `gate` + edge head = **full SPEAR-Net**.
+5. RGB-only prior (`prior_type: csp`, 3 bands) vs full spectral PISP (6 bands).
+6. Tasks: `binary` / `scale3` (artisanal-vs-industrial).
 
-**Metrics**: mIoU, per-class IoU (esp. rare classes), F1, precision, recall, plus
-**area-stratified recall** (small / medium / large components), and params / GFLOPs /
-T4 latency / peak VRAM.
+**Generalization (headline)**: geographic **leave-one-region-out** — set
+`data.holdout_regions` (e.g. `[Asia, Oceania]`); training excludes them and an `ood` split
+is exposed for out-of-region testing. Report in-region vs out-of-region mIoU drop.
+
+**Metrics**: mIoU, per-class IoU, F1, precision, recall, **area-stratified recall**
+(small/medium/large), and params / GFLOPs / T4 latency / peak VRAM.
 
 ---
 

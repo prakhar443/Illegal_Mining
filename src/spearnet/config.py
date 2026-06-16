@@ -42,18 +42,41 @@ THREE_CLASS_MAP: Dict[int, int] = {
 BINARY_NAMES: List[str] = ["background", "mining"]
 BINARY_MAP: Dict[int, int] = {0: 0, **{i: 1 for i in range(1, 10)}}
 
+# v4: artisanal-vs-industrial scale task. The chip mask is binary {bg, mining}; the
+# geotiff dataset turns mining pixels into class 1 (artisanal) or 2 (industrial) using the
+# per-chip verified `scale` label, so there is no fixed id remap here.
+SCALE3_NAMES: List[str] = ["background", "artisanal", "industrial"]
+
 TASK_REGISTRY: Dict[str, Dict[str, Any]] = {
+    # v4 (mine-segmentation) tasks
+    "binary": {"num_classes": 2, "names": BINARY_NAMES, "remap": BINARY_MAP},
+    "scale3": {"num_classes": 3, "names": SCALE3_NAMES, "remap": None},
+    # legacy LAMES tasks (v3)
     "10class": {"num_classes": 10, "names": LAMES_CLASSES, "remap": None},
     "3class": {"num_classes": 3, "names": THREE_CLASS_NAMES, "remap": THREE_CLASS_MAP},
-    "binary": {"num_classes": 2, "names": BINARY_NAMES, "remap": BINARY_MAP},
 }
 
 
 @dataclass
 class DataConfig:
     # ----- source selection -----
-    source: str = "local"               # "local" (zips/folder on disk) or "hf" (HuggingFace)
+    # "mining" : v4 global mine-segmentation 6-band GeoTIFF chips + manifest (default)
+    # "local"  : LAMES zips/folder on disk (v3) ;  "hf" : HuggingFace LAMES (v3)
+    source: str = "mining"
     hf_name: str = "maduschek/LAMES"    # used when source == "hf"
+
+    # ----- v4 mine-segmentation (GeoTIFF chips) -----
+    chips_root: Optional[str] = "chips"        # dir with train/ val/ test/ subfolders
+    manifest: Optional[str] = "chips/manifest.csv"  # per-chip scale/region/split table
+    bands: int = 6                             # input channels (6 = B,G,R,NIR,SWIR1,SWIR2)
+    band_order: List[str] = field(
+        default_factory=lambda: ["B", "G", "R", "NIR", "SWIR1", "SWIR2"]
+    )
+    reflectance_scale: float = 10000.0         # Sentinel-2 DN -> reflectance divisor
+    holdout_regions: List[str] = field(default_factory=list)  # leave-one-region-out
+    keep_empty_frac: float = 0.3               # fraction of mining-free chips to keep
+
+    # ----- local source (Google Drive zips extracted to disk) -----
 
     # ----- local source (Google Drive zips extracted to disk) -----
     local_root: Optional[str] = "data/lames"   # where extracted image/mask files live
@@ -86,8 +109,9 @@ class ModelConfig:
     backbone: str = "mobilenetv3_small_100"  # timm name; or efficientnet_lite0
     pretrained: bool = True
     decoder_channels: List[int] = field(default_factory=lambda: [128, 64, 48, 32])
-    # CSP prior
-    csp_mode: str = "gate"             # gate | concat | none
+    # Spectral prior
+    prior_type: str = "pisp"           # pisp (S2 spectral) | csp (RGB-only ablation)
+    csp_mode: str = "gate"             # gate | concat | none  (integration mode)
     csp_alpha_init: float = 1.0        # initial gate strength (per-scale, learnable)
     use_edge_head: bool = True
 

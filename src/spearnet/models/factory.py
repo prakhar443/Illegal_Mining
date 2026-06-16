@@ -31,9 +31,14 @@ def build_model(cfg: Config) -> nn.Module:
     name = cfg.model.name.lower()
     nc = cfg.num_classes
 
+    in_chans = cfg.data.bands
+
     if name == "spearnet":
         return SPEARNet(
             num_classes=nc,
+            in_chans=in_chans,
+            band_order=cfg.data.band_order,
+            prior_type=cfg.model.prior_type,
             backbone=cfg.model.backbone,
             pretrained=cfg.model.pretrained,
             decoder_channels=cfg.model.decoder_channels,
@@ -47,7 +52,7 @@ def build_model(cfg: Config) -> nn.Module:
     enc = cfg.model.backbone
     weights = "imagenet" if cfg.model.pretrained else None
     common = dict(encoder_name=_smp_encoder(enc), encoder_weights=weights,
-                  in_channels=3, classes=nc)
+                  in_channels=in_chans, classes=nc)
 
     if name == "unet":
         model = smp.Unet(**common)

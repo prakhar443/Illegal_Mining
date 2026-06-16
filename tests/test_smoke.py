@@ -10,7 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 import torch
 
 from spearnet.config import Config, load_config
-from spearnet.data.priors import compute_csp_priors, N_CSP_PRIORS
+from spearnet.data.priors import (
+    compute_csp_priors, compute_pisp_priors, N_CSP_PRIORS, N_PISP_PRIORS,
+)
 from spearnet.data.transforms import sobel_edges, random_flip_rotate
 from spearnet.data.dataset import remap_mask, LAMESDataset
 from spearnet.losses import CompoundLoss
@@ -19,10 +21,12 @@ from spearnet.models import build_model
 import numpy as np
 
 
-def _cfg(**model_over):
+def _cfg(bands=6, task="binary", **model_over):
     cfg = Config()
     cfg.data.image_size = 64
     cfg.data.batch_size = 2
+    cfg.data.bands = bands
+    cfg.data.task = task
     cfg.model.pretrained = False  # no network in CI
     for k, v in model_over.items():
         setattr(cfg.model, k, v)
@@ -33,6 +37,13 @@ def test_csp_priors_shape_and_range():
     x = torch.rand(2, 3, 32, 32)
     p = compute_csp_priors(x)
     assert p.shape == (2, N_CSP_PRIORS, 32, 32)
+    assert torch.isfinite(p).all()
+
+
+def test_pisp_priors_shape_and_range():
+    x = torch.rand(2, 6, 32, 32)  # B,G,R,NIR,SWIR1,SWIR2
+    p = compute_pisp_priors(x)
+    assert p.shape == (2, N_PISP_PRIORS, 32, 32)
     assert torch.isfinite(p).all()
 
 
@@ -53,10 +64,10 @@ def test_remap_3class_and_binary():
     assert set(np.unique(rb)).issubset({0, 1})
 
 
-def test_spearnet_forward_backward_gate():
-    cfg = _cfg(csp_mode="gate", use_edge_head=True)
+def test_spearnet_forward_backward_gate_pisp():
+    cfg = _cfg(csp_mode="gate", use_edge_head=True, prior_type="pisp")
     model = build_model(cfg)
-    x = torch.rand(2, 3, 64, 64)
+    x = torch.rand(2, cfg.data.bands, 64, 64)
     out = model(x)
     assert out["logits"].shape == (2, cfg.num_classes, 64, 64)
     assert "edge" in out and out["edge"].shape == (2, 1, 64, 64)
@@ -64,20 +75,26 @@ def test_spearnet_forward_backward_gate():
     out["logits"].sum().backward()  # gradients flow
 
 
-def test_spearnet_concat_and_none():
+def test_spearnet_concat_none_and_csp_prior():
     for mode in ("concat", "none"):
         cfg = _cfg(csp_mode=mode, use_edge_head=False)
         model = build_model(cfg)
-        out = model(torch.rand(2, 3, 64, 64))
+        out = model(torch.rand(2, cfg.data.bands, 64, 64))
         assert out["logits"].shape[1] == cfg.num_classes
         assert "edge" not in out
+    # RGB-only CSP prior on 3-band input (the RGB-vs-spectral ablation)
+    cfg = _cfg(bands=3, csp_mode="gate", prior_type="csp")
+    cfg.data.band_order = ["R", "G", "B"]
+    model = build_model(cfg)
+    out = model(torch.rand(2, 3, 64, 64))
+    assert out["logits"].shape[1] == cfg.num_classes
 
 
 def test_compound_loss():
     cfg = _cfg(csp_mode="gate", use_edge_head=True)
     model = build_model(cfg)
     crit = CompoundLoss(cfg.num_classes)
-    x = torch.rand(2, 3, 64, 64)
+    x = torch.rand(2, cfg.data.bands, 64, 64)
     batch = {
         "image": x,
         "mask": torch.randint(0, cfg.num_classes, (2, 64, 64)),
@@ -126,7 +143,7 @@ def test_compound_includes_focal_by_default():
     cfg = _cfg(csp_mode="gate", use_edge_head=True)
     model = build_model(cfg)
     crit = CompoundLoss(cfg.num_classes, w_focal=1.0)
-    x = torch.rand(2, 3, 64, 64)
+    x = torch.rand(2, cfg.data.bands, 64, 64)
     batch = {"image": x, "mask": torch.randint(0, cfg.num_classes, (2, 64, 64)),
              "edge": torch.randint(0, 2, (2, 1, 64, 64)).float()}
     loss, comps = crit(model(x), batch)
@@ -181,6 +198,53 @@ def test_override_loader(tmp_path):
     assert cfg.optim.epochs == 3
     assert cfg.data.task == "binary"
     assert cfg.num_classes == 2
+
+
+def test_continent_of():
+    from spearnet.data.fetch import continent_of
+    assert continent_of(-60, -10) == "SouthAmerica"   # Amazon
+    assert continent_of(100, 30) == "Asia"
+    assert continent_of(20, 10) == "Africa"
+
+
+def test_geotiff_dataset_binary_and_scale3(tmp_path):
+    rasterio = __import__("importlib").util.find_spec("rasterio")
+    if rasterio is None:
+        import pytest
+        pytest.skip("rasterio not installed")
+    import rasterio as rio
+    from rasterio.transform import from_origin
+    from spearnet.data.geotiff import GeoTiffDataset
+
+    def write(path, arr):
+        c, h, w = arr.shape
+        with rio.open(path, "w", driver="GTiff", height=h, width=w, count=c,
+                      dtype=arr.dtype, crs="EPSG:32633",
+                      transform=from_origin(0, 0, 10, 10)) as dst:
+            dst.write(arr)
+
+    rows = []
+    for i, scale in enumerate(["artisanal", "industrial"]):
+        ip = str(tmp_path / f"{i}_img.tif")
+        mp = str(tmp_path / f"{i}_mask.tif")
+        write(ip, (np.random.rand(6, 32, 32) * 3000).astype("uint16"))
+        m = np.zeros((1, 32, 32), "uint8"); m[0, 8:20, 8:20] = 1
+        write(mp, m)
+        rows.append({"img": ip, "mask": mp, "split": "train", "scale": scale,
+                     "region": "Africa", "has_mining": "1"})
+
+    # binary
+    cfg = _cfg(bands=6, task="binary")
+    ds = GeoTiffDataset(rows, cfg, train=True)
+    s = ds[0]
+    assert s["image"].shape == (6, 64, 64) and s["mask"].shape == (64, 64)
+    assert set(torch.unique(s["mask"]).tolist()) <= {0, 1}
+
+    # scale3: artisanal chip -> class 1, industrial chip -> class 2
+    cfg3 = _cfg(bands=6, task="scale3")
+    ds3 = GeoTiffDataset(rows, cfg3, train=False)
+    assert 1 in torch.unique(ds3[0]["mask"]).tolist()   # artisanal
+    assert 2 in torch.unique(ds3[1]["mask"]).tolist()   # industrial
 
 
 # --------------------------------------------------------------------------------------

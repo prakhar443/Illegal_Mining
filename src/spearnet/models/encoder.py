@@ -13,16 +13,18 @@ import torch.nn as nn
 
 
 class TimmEncoder(nn.Module):
-    def __init__(self, name: str = "mobilenetv3_small_100", pretrained: bool = True):
+    def __init__(self, name: str = "mobilenetv3_small_100", pretrained: bool = True,
+                 in_chans: int = 3):
         super().__init__()
         import timm
 
-        # out_indices default returns the deepest 5 feature scales for most backbones.
+        # timm adapts the ImageNet-pretrained stem to in_chans>3 by tiling/scaling the
+        # RGB filters into the extra (NIR/SWIR) channels.
         self.backbone = timm.create_model(
             name,
             features_only=True,
             pretrained=pretrained,
-            in_chans=3,
+            in_chans=in_chans,
         )
         self.feature_channels: List[int] = list(self.backbone.feature_info.channels())
         self.reductions: List[int] = list(self.backbone.feature_info.reduction())

@@ -305,10 +305,16 @@ def _split_examples(cfg: Config) -> Dict[str, List[Dict]]:
 def build_dataloaders(
     cfg: Config, splits: Tuple[str, ...] = ("train", "val")
 ) -> Dict[str, DataLoader]:
-    """Build PyTorch dataloaders from the configured source (local zips or HuggingFace).
+    """Build PyTorch dataloaders from the configured source.
 
+    source="mining" -> v4 GeoTIFF chips (+manifest); "local"/"hf" -> LAMES (v3).
     Returns a dict mapping split name -> DataLoader for each requested split.
     """
+    if cfg.data.source == "mining":
+        from .geotiff import build_mining_dataloaders
+
+        return build_mining_dataloaders(cfg, splits)
+
     all_examples = _split_examples(cfg)
 
     loaders: Dict[str, DataLoader] = {}
