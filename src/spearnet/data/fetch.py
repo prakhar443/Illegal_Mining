@@ -26,18 +26,18 @@ Install on Colab:
 from __future__ import annotations
 
 import csv
+import json
 import os
+import shutil
 import time
 import urllib.request
 import zipfile
 from typing import Dict, List, Optional, Tuple
 
-ZENODO_ANNOT_URL = (
-    "https://zenodo.org/records/14195737/files/"
-    "mining_tiles_with_masks_and_bounding_boxes.gpkg?download=1"
-)
-# Some Zenodo revisions package the gpkg inside a zip; we handle both.
-ZENODO_FALLBACK_ZIP = "https://zenodo.org/records/14195737/files/mine_data.zip?download=1"
+# Zenodo record for SimonJasansky/mine-segmentation. We resolve the actual file names via
+# the Zenodo API at runtime (filenames change between versions), then download.
+ZENODO_RECORD_ID = "14195737"
+ZENODO_API = "https://zenodo.org/api/records/{rid}"
 
 # S2 L2A asset keys on Planetary Computer for our 6 bands, in output order.
 S2_ASSETS: List[str] = ["B02", "B03", "B04", "B08", "B11", "B12"]  # B,G,R,NIR,SWIR1,SWIR2
@@ -50,39 +50,91 @@ _SCALE_COL_CANDIDATES = ["minetype2", "scale", "minetype_2", "type2"]
 # --------------------------------------------------------------------------------------
 # Download annotations
 # --------------------------------------------------------------------------------------
-def download_annotations(dest_dir: str = "mine_data") -> str:
-    """Download the annotation GeoPackage (idempotent). Returns the .gpkg path."""
-    os.makedirs(dest_dir, exist_ok=True)
-    gpkg = os.path.join(dest_dir, "mining_area_data.gpkg")
-    if os.path.exists(gpkg) and os.path.getsize(gpkg) > 1_000_000:
-        print(f"[annot] already present: {gpkg}")
-        return gpkg
+def download_annotations(dest_dir: str = "mine_data", record_id: str = ZENODO_RECORD_ID,
+                         annot_url: Optional[str] = None) -> str:
+    """Download the annotation GeoPackage (idempotent). Returns the .gpkg path.
 
-    print(f"Downloading annotations from Zenodo -> {gpkg} ...")
-    try:
-        _download(ZENODO_ANNOT_URL, gpkg)
-        return gpkg
-    except Exception as e:  # noqa: BLE001
-        print(f"[annot] direct gpkg download failed ({e}); trying zip fallback")
-        zpath = os.path.join(dest_dir, "mine_data.zip")
-        _download(ZENODO_FALLBACK_ZIP, zpath)
-        with zipfile.ZipFile(zpath) as zf:
+    Resolves the real file name via the Zenodo API (robust to version changes). Pass an
+    explicit ``annot_url`` to override (e.g. a mirror or a direct file link).
+    """
+    os.makedirs(dest_dir, exist_ok=True)
+
+    # already downloaded?
+    for f in os.listdir(dest_dir):
+        if f.lower().endswith(".gpkg"):
+            p = os.path.join(dest_dir, f)
+            if os.path.getsize(p) > 1_000_000:
+                print(f"[annot] already present: {p}")
+                return p
+
+    if annot_url:
+        out = os.path.join(dest_dir, os.path.basename(annot_url.split("?")[0]) or "annotations.gpkg")
+        print(f"Downloading annotations (manual URL) -> {out} ...")
+        _download(annot_url, out)
+        return _ensure_gpkg(out, dest_dir)
+
+    files = _zenodo_files(record_id)
+    if not files:
+        raise RuntimeError(
+            f"No files listed for Zenodo record {record_id}. Pass annot_url=... explicitly."
+        )
+    # Prefer a .gpkg; else a .zip that contains one.
+    target = (_first(files, ".gpkg") or _first(files, ".zip")
+              or _first(files, ".gpkg.zip") or files[0])
+    key = target["key"]
+    url = target["links"].get("self") or target["links"].get("download")
+    out = os.path.join(dest_dir, key)
+    print(f"Downloading annotations from Zenodo: {key} ({target.get('size','?')} bytes) ...")
+    _download(url, out)
+    return _ensure_gpkg(out, dest_dir)
+
+
+def _zenodo_files(record_id: str) -> List[Dict]:
+    url = ZENODO_API.format(rid=record_id)
+    req = urllib.request.Request(url, headers={"User-Agent": "spearnet/0.1"})
+    for i in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.load(r)
+            return data.get("files", [])
+        except Exception as e:  # noqa: BLE001
+            print(f"  [zenodo-api] attempt {i+1} failed: {e}")
+            time.sleep(2 ** i)
+    return []
+
+
+def _first(files: List[Dict], suffix: str) -> Optional[Dict]:
+    for f in files:
+        if f.get("key", "").lower().endswith(suffix):
+            return f
+    return None
+
+
+def _ensure_gpkg(path: str, dest_dir: str) -> str:
+    """If ``path`` is already a gpkg, return it; if it's a zip, extract and find the gpkg."""
+    if path.lower().endswith(".gpkg"):
+        return path
+    if zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path) as zf:
             zf.extractall(dest_dir)
         for root, _, files in os.walk(dest_dir):
             for f in files:
-                if f.endswith(".gpkg"):
+                if f.lower().endswith(".gpkg"):
                     return os.path.join(root, f)
-        raise FileNotFoundError("No .gpkg found after extracting the Zenodo zip")
+    raise FileNotFoundError(f"No .gpkg found in/under {path}")
 
 
 def _download(url: str, path: str, retries: int = 4) -> None:
     last = None
     for i in range(retries):
         try:
-            urllib.request.urlretrieve(url, path)
+            req = urllib.request.Request(url, headers={"User-Agent": "spearnet/0.1"})
+            with urllib.request.urlopen(req, timeout=300) as r, open(path, "wb") as f:
+                shutil.copyfileobj(r, f)
             return
         except Exception as e:  # noqa: BLE001
             last = e
+            print(f"  [download] attempt {i+1}/{retries} failed: {e}")
             time.sleep(2 ** i)
     raise last
 
