@@ -19,9 +19,10 @@ from .spearnet import SPEARNet
 class _SMPWrapper(nn.Module):
     """Wrap an smp model so it returns the SPEAR-Net-style output dict."""
 
-    def __init__(self, model: nn.Module):
+    def __init__(self, model: nn.Module, in_chans: int = 3):
         super().__init__()
         self.model = model
+        self.in_chans = in_chans
 
     def forward(self, rgb: torch.Tensor) -> Dict[str, torch.Tensor]:
         return {"logits": self.model(rgb)}
@@ -67,7 +68,7 @@ def build_model(cfg: Config) -> nn.Module:
     else:
         raise ValueError(f"Unknown model.name '{cfg.model.name}'")
 
-    return _SMPWrapper(model)
+    return _SMPWrapper(model, in_chans=in_chans)
 
 
 def _smp_encoder(timm_name: str) -> str:

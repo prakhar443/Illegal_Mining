@@ -18,7 +18,7 @@ def count_parameters(model: nn.Module) -> Dict[str, float]:
     return {"params_total_M": total / 1e6, "params_trainable_M": trainable / 1e6}
 
 
-def _gflops(model: nn.Module, image_size: int, device: torch.device) -> float:
+def _gflops(model: nn.Module, image_size: int, device: torch.device, in_chans: int = 3) -> float:
     """Best-effort GFLOPs via ptflops; returns nan if unavailable."""
     try:
         from ptflops import get_model_complexity_info
@@ -35,7 +35,7 @@ def _gflops(model: nn.Module, image_size: int, device: torch.device) -> float:
 
         wrapped = _Wrap(model).to(device).eval()
         macs, _ = get_model_complexity_info(
-            wrapped, (3, image_size, image_size),
+            wrapped, (in_chans, image_size, image_size),
             as_strings=False, print_per_layer_stat=False, verbose=False,
         )
         return float(macs) * 2 / 1e9  # MACs -> FLOPs -> GFLOPs
@@ -48,15 +48,18 @@ def measure_efficiency(
     model: nn.Module,
     image_size: int = 256,
     device: str = "cuda",
+    in_chans: int = None,
     warmup: int = 5,
     iters: int = 30,
 ) -> Dict[str, float]:
     dev = torch.device(device if (device == "cpu" or torch.cuda.is_available()) else "cpu")
     model = model.to(dev).eval()
-    x = torch.randn(1, 3, image_size, image_size, device=dev)
+    if in_chans is None:
+        in_chans = getattr(model, "in_chans", 3)  # SPEARNet exposes .in_chans
+    x = torch.randn(1, in_chans, image_size, image_size, device=dev)
 
     out = dict(count_parameters(model))
-    out["gflops"] = _gflops(model, image_size, dev)
+    out["gflops"] = _gflops(model, image_size, dev, in_chans)
 
     for _ in range(warmup):
         model(x)
