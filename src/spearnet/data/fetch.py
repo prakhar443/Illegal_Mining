@@ -308,6 +308,7 @@ def fetch_tile_array(catalog, s2_id: str, centroid_lonlat, window_px: int, res: 
     import numpy as np
     import stackstac
     from pyproj import Transformer
+    from rasterio.transform import from_origin
 
     item = _find_item(catalog, s2_id, centroid_lonlat, retries)
     if item is None:
@@ -327,7 +328,14 @@ def fetch_tile_array(catalog, s2_id: str, centroid_lonlat, window_px: int, res: 
             )  # default float64 (accepts NaN fill); cast to float32 after compute
             arr = stack.squeeze("time").compute()  # (band, y, x)
             data = np.nan_to_num(arr.values).astype("float32")
-            transform = arr.rio.transform()
+            # Build the geotransform from the x/y cell-centre coords (no rioxarray needed).
+            xs = np.asarray(arr["x"].values)
+            ys = np.asarray(arr["y"].values)
+            rx = float(xs[1] - xs[0]) if xs.size > 1 else float(res)
+            ry = float(abs(ys[1] - ys[0])) if ys.size > 1 else float(res)
+            west = float(xs.min()) - rx / 2.0
+            north = float(ys.max()) + ry / 2.0
+            transform = from_origin(west, north, rx, ry)
             return data, transform, epsg
         except Exception as e:  # noqa: BLE001
             if i == retries - 1:
