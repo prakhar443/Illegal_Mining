@@ -323,8 +323,8 @@ def fetch_tile_array(catalog, s2_id: str, centroid_lonlat, window_px: int, res: 
         try:
             stack = stackstac.stack(
                 [item], assets=S2_ASSETS, epsg=epsg, resolution=res,
-                bounds=bounds, dtype="float32", fill_value=np.nan, rescale=False,
-            )
+                bounds=bounds, fill_value=np.nan, rescale=False,
+            )  # default float64 (accepts NaN fill); cast to float32 after compute
             arr = stack.squeeze("time").compute()  # (band, y, x)
             data = np.nan_to_num(arr.values).astype("float32")
             transform = arr.rio.transform()
