@@ -207,6 +207,15 @@ def test_continent_of():
     assert continent_of(20, 10) == "Africa"
 
 
+def test_parse_s2_id():
+    from spearnet.data.fetch import _parse_s2_id
+    p = _parse_s2_id("S2A_MSIL2A_20180928T022551_R046_T49MHU_20201009T054208")
+    assert p["platform"] == "S2A"
+    assert p["sensing"] == "20180928T022551"
+    assert p["tile"] == "49MHU"           # MGRS tile, no leading T (PC s2:mgrs_tile)
+    assert p["prefix"] == "S2A_MSIL2A_20180928T022551_R046_T49MHU"
+
+
 def test_geotiff_dataset_binary_and_scale3(tmp_path):
     rasterio = __import__("importlib").util.find_spec("rasterio")
     if rasterio is None:

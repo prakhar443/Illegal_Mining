@@ -231,6 +231,77 @@ def _open_catalog():
     )
 
 
+def _parse_s2_id(s2_id: str) -> Dict[str, str]:
+    """Parse an ESA/PC S2 id like S2A_MSIL2A_20180928T022551_R046_T49MHU_20201009T054208."""
+    parts = s2_id.split("_")
+    out = {"platform": "", "sensing": "", "orbit": "", "tile": "", "prefix": s2_id}
+    if len(parts) >= 5:
+        out["platform"] = parts[0]
+        out["sensing"] = parts[2]                      # 20180928T022551
+        out["orbit"] = parts[3]                         # R046
+        out["tile"] = parts[4].lstrip("T")             # 49MHU  (PC s2:mgrs_tile has no T)
+        out["prefix"] = "_".join(parts[:5])            # acquisition prefix (drops proc-time)
+    return out
+
+
+def _find_item(catalog, s2_id: str, centroid_lonlat, retries: int = 4):
+    """Resolve a Planetary Computer S2 L2A item robustly.
+
+    PC re-processes ESA scenes, so the trailing processing timestamp in ``s2_tile_id``
+    usually differs from PC's id -> exact-id search fails. We therefore (1) try the exact
+    id, then (2) search by MGRS tile + sensing date and match the acquisition prefix,
+    falling back to the least-cloudy scene over the tile centroid.
+    """
+    p = _parse_s2_id(s2_id)
+    lon, lat = centroid_lonlat
+    last_err = None
+    point = {"type": "Point", "coordinates": [lon, lat]}
+
+    def _window(days: int) -> str:
+        import datetime as _dt
+        d = _dt.datetime.strptime(p["sensing"][:8], "%Y%m%d")
+        a = (d - _dt.timedelta(days=days)).strftime("%Y-%m-%d")
+        b = (d + _dt.timedelta(days=days)).strftime("%Y-%m-%d")
+        return f"{a}T00:00:00Z/{b}T23:59:59Z"
+
+    for attempt in range(retries):
+        try:
+            # (1) fast path: exact id
+            items = list(catalog.search(collections=["sentinel-2-l2a"], ids=[s2_id]).items())
+            if items:
+                return items[0]
+
+            if p["sensing"]:
+                # (2) same acquisition by MGRS tile + sensing-day window
+                query = {"s2:mgrs_tile": {"eq": p["tile"]}} if p["tile"] else None
+                cands = list(catalog.search(
+                    collections=["sentinel-2-l2a"], datetime=_window(2),
+                    query=query, intersects=point,
+                ).items())
+                exact = [c for c in cands if c.id.startswith(p["prefix"])]
+                if exact:
+                    return exact[0]
+                if cands:
+                    cands.sort(key=lambda c: c.properties.get("eo:cloud_cover", 100))
+                    return cands[0]
+
+                # (3) last resort: any low-cloud scene over the point near that date
+                cands = list(catalog.search(
+                    collections=["sentinel-2-l2a"], datetime=_window(15),
+                    intersects=point, query={"eo:cloud_cover": {"lt": 40}},
+                ).items())
+                if cands:
+                    cands.sort(key=lambda c: c.properties.get("eo:cloud_cover", 100))
+                    return cands[0]
+            return None
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            time.sleep(2 ** attempt)
+    if last_err is not None:
+        print(f"  [search-error] {s2_id}: {type(last_err).__name__}: {last_err}")
+    return None
+
+
 def fetch_tile_array(catalog, s2_id: str, centroid_lonlat, window_px: int, res: int,
                      retries: int = 4):
     """Return (array[6,H,W] float, transform, epsg) for the S2 window, or None."""
@@ -238,15 +309,7 @@ def fetch_tile_array(catalog, s2_id: str, centroid_lonlat, window_px: int, res: 
     import stackstac
     from pyproj import Transformer
 
-    item = None
-    for i in range(retries):
-        try:
-            search = catalog.search(collections=["sentinel-2-l2a"], ids=[s2_id])
-            items = list(search.items())
-            item = items[0] if items else None
-            break
-        except Exception:  # noqa: BLE001
-            time.sleep(2 ** i)
+    item = _find_item(catalog, s2_id, centroid_lonlat, retries)
     if item is None:
         return None
 
@@ -266,7 +329,9 @@ def fetch_tile_array(catalog, s2_id: str, centroid_lonlat, window_px: int, res: 
             data = np.nan_to_num(arr.values).astype("float32")
             transform = arr.rio.transform()
             return data, transform, epsg
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            if i == retries - 1:
+                print(f"  [stac-load-error] {s2_id}: {type(e).__name__}: {e}")
             time.sleep(2 ** i)
     return None
 
