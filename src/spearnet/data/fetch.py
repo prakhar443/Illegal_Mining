@@ -404,8 +404,10 @@ def fetch_dataset(
     import random
     import logging
 
-    # Quiet benign GDAL/rasterio chatter during COG reads (CPLE_NotSupported SHARING/WARP_EXTRAS).
-    logging.getLogger("rasterio._env").setLevel(logging.ERROR)
+    # Quiet benign GDAL/rasterio chatter during COG reads (SHARING/WARP_EXTRAS,
+    # TIFFFetchNormalTag GeoPixelScale/GeoKeyDirectory IO warnings — reads still succeed).
+    for _lg in ("rasterio._env", "rasterio._err", "rasterio"):
+        logging.getLogger(_lg).setLevel(logging.ERROR)
 
     gpkg = download_annotations(annot_dir)
     print_summary(gpkg)
