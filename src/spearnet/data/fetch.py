@@ -394,6 +394,10 @@ def fetch_dataset(
     Returns the manifest.csv path when imagery is fetched, else None.
     """
     import random
+    import logging
+
+    # Quiet benign GDAL/rasterio chatter during COG reads (CPLE_NotSupported SHARING/WARP_EXTRAS).
+    logging.getLogger("rasterio._env").setLevel(logging.ERROR)
 
     gpkg = download_annotations(annot_dir)
     print_summary(gpkg)
@@ -427,11 +431,14 @@ def fetch_dataset(
         if subset_per_split is not None:
             rows = rows[:subset_per_split]
         print(f"\n[{split}] fetching {len(rows)} tiles ...")
-        for r in rows:
+        for ti, r in enumerate(rows):
             n = _process_tile(r, masks, scale_col, catalog, out_dir, split, writer,
                               chip_size, window_px, res, keep_empty_frac, rng)
             counts[split] += n
             fout.flush()
+            if n:
+                print(f"  [{split} {ti+1}/{len(rows)}] +{n} chips "
+                      f"(total {counts[split]})", flush=True)
 
     fout.close()
     print(f"\nDone. Chips per split: {counts}")
