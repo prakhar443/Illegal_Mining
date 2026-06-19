@@ -12,6 +12,7 @@ from .priors import (
 from .dataset import LAMESDataset, build_dataloaders, remap_mask
 from .transforms import sobel_edges
 from .geotiff import GeoTiffDataset, build_mining_examples, read_manifest
+from .fetch import fetch_dataset, download_annotations, package_chips, restore_chips
 from .local import (
     prepare_local_dataset,
     discover_pairs,
@@ -33,6 +34,10 @@ __all__ = [
     "GeoTiffDataset",
     "build_mining_examples",
     "read_manifest",
+    "fetch_dataset",
+    "download_annotations",
+    "package_chips",
+    "restore_chips",
     "LAMESDataset",
     "build_dataloaders",
     "remap_mask",

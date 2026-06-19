@@ -207,6 +207,22 @@ def test_continent_of():
     assert continent_of(20, 10) == "Africa"
 
 
+def test_package_and_restore_chips(tmp_path):
+    from spearnet.data.fetch import package_chips, restore_chips
+    src = tmp_path / "chips"
+    (src / "train").mkdir(parents=True)
+    (src / "train" / "a_img.tif").write_bytes(b"img")
+    (src / "train" / "a_mask.tif").write_bytes(b"msk")
+    (src / "manifest.csv").write_text("img,mask\n")
+    zpath = str(tmp_path / "chips.zip")
+    package_chips(str(src), zpath)
+    assert os.path.exists(zpath)
+    dest = tmp_path / "restored"
+    restore_chips(zpath, str(dest))
+    assert (dest / "train" / "a_img.tif").exists()
+    assert (dest / "manifest.csv").exists()
+
+
 def test_parse_s2_id():
     from spearnet.data.fetch import _parse_s2_id
     p = _parse_s2_id("S2A_MSIL2A_20180928T022551_R046_T49MHU_20201009T054208")

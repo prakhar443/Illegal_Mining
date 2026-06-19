@@ -396,8 +396,13 @@ def fetch_dataset(
     keep_empty_frac: float = 0.3,
     splits: Tuple[str, ...] = ("train", "val", "test"),
     seed: int = 42,
+    resume: bool = True,
 ) -> Optional[str]:
     """Run the full pipeline. With ``fetch_imagery=False`` only prints metadata.
+
+    Resumable: with ``resume=True`` (default) tiles already in the manifest or recorded as
+    attempted are skipped, so re-running after a crash continues where it left off. Write
+    chips to fast LOCAL disk (e.g. /content/chips), then package once to Drive.
 
     Returns the manifest.csv path when imagery is fetched, else None.
     """
@@ -433,6 +438,13 @@ def fetch_dataset(
         writer.writerow(["img", "mask", "split", "scale", "minetype1", "region",
                          "has_mining", "tile_id", "s2_tile_id"])
 
+    # Resume support: skip tiles already done (in manifest) or already attempted.
+    attempted_path = os.path.join(out_dir, ".attempted.txt")
+    done = _done_tile_ids(manifest_path) if resume else set()
+    attempted = _read_attempted(attempted_path) if resume else set()
+    skip_ids = done | attempted
+    aout = open(attempted_path, "a")
+
     counts = {s: 0 for s in splits}
     for split in splits:
         sub = tiles[tiles["split"] == split] if "split" in tiles else tiles
@@ -440,20 +452,70 @@ def fetch_dataset(
         rng.shuffle(rows)
         if subset_per_split is not None:
             rows = rows[:subset_per_split]
-        print(f"\n[{split}] fetching {len(rows)} tiles ...")
-        for ti, r in enumerate(rows):
+        todo = [r for r in rows if str(getattr(r, "tile_id", getattr(r, "Index", ""))) not in skip_ids]
+        print(f"\n[{split}] {len(todo)} tiles to fetch "
+              f"({len(rows) - len(todo)} already done/attempted, skipped) ...")
+        for ti, r in enumerate(todo):
+            tid = str(getattr(r, "tile_id", getattr(r, "Index", "")))
             n = _process_tile(r, masks, scale_col, catalog, out_dir, split, writer,
                               chip_size, window_px, res, keep_empty_frac, rng)
             counts[split] += n
             fout.flush()
+            aout.write(tid + "\n"); aout.flush()   # mark attempted (success or skip)
             if n:
-                print(f"  [{split} {ti+1}/{len(rows)}] +{n} chips "
+                print(f"  [{split} {ti+1}/{len(todo)}] +{n} chips "
                       f"(total {counts[split]})", flush=True)
 
     fout.close()
-    print(f"\nDone. Chips per split: {counts}")
+    aout.close()
+    print(f"\nDone. Chips per split this run: {counts}")
     print(f"Manifest -> {manifest_path}")
     return manifest_path
+
+
+def _done_tile_ids(manifest_path: str) -> set:
+    out = set()
+    if os.path.exists(manifest_path):
+        with open(manifest_path, newline="") as f:
+            for row in csv.DictReader(f):
+                out.add(str(row.get("tile_id", "")))
+    return out
+
+
+def _read_attempted(path: str) -> set:
+    if not os.path.exists(path):
+        return set()
+    with open(path) as f:
+        return {ln.strip() for ln in f if ln.strip()}
+
+
+# --------------------------------------------------------------------------------------
+# Package / restore (store the fetched chips as a single Drive zip, reuse across sessions)
+# --------------------------------------------------------------------------------------
+def package_chips(chips_dir: str, zip_path: str) -> str:
+    """Zip a chips dir (stored, not recompressed — GeoTIFFs are already compressed)."""
+    os.makedirs(os.path.dirname(zip_path) or ".", exist_ok=True)
+    tmp = zip_path + ".tmp"
+    n = 0
+    with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_STORED) as zf:
+        for root, _, files in os.walk(chips_dir):
+            for fn in files:
+                fp = os.path.join(root, fn)
+                zf.write(fp, arcname=os.path.relpath(fp, chips_dir))
+                n += 1
+    os.replace(tmp, zip_path)
+    mb = os.path.getsize(zip_path) / 1e6
+    print(f"[package] {n} files -> {zip_path} ({mb:.1f} MB)")
+    return zip_path
+
+
+def restore_chips(zip_path: str, dest_dir: str) -> str:
+    """Unzip a packaged chips archive into ``dest_dir`` (idempotent)."""
+    os.makedirs(dest_dir, exist_ok=True)
+    with zipfile.ZipFile(zip_path) as zf:
+        zf.extractall(dest_dir)
+    print(f"[restore] extracted {zip_path} -> {dest_dir}")
+    return dest_dir
 
 
 def _process_tile(r, masks, scale_col, catalog, out_dir, split, writer,

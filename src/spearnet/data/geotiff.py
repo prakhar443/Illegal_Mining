@@ -113,11 +113,21 @@ def build_mining_examples(cfg: Config) -> Dict[str, List[Dict[str, str]]]:
         )
     rows = read_manifest(manifest)
     holdout = {r.lower() for r in (cfg.data.holdout_regions or [])}
+    chips_root = cfg.data.chips_root or os.path.dirname(manifest)
+
+    def _fix(path: str, split: str) -> str:
+        """Make manifest paths portable: if the stored absolute path is gone (e.g. chips
+        were restored to a different dir), rebuild it under chips_root/split/."""
+        if path and os.path.exists(path):
+            return path
+        return os.path.join(chips_root, split, os.path.basename(path))
 
     out: Dict[str, List[Dict[str, str]]] = {"train": [], "val": [], "test": [], "ood": []}
     for row in rows:
-        region = row.get("region", "").lower()
         split = row.get("split", "train")
+        row["img"] = _fix(row.get("img", ""), split)
+        row["mask"] = _fix(row.get("mask", ""), split)
+        region = row.get("region", "").lower()
         if holdout and region in holdout:
             out["ood"].append(row)            # out-of-region test pool
             continue
