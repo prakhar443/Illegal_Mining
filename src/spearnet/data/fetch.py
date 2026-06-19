@@ -518,6 +518,19 @@ def restore_chips(zip_path: str, dest_dir: str) -> str:
     return dest_dir
 
 
+def restore_chips_from_url(url: str, dest_dir: str, cache_zip: str = "/content/_chips.zip") -> str:
+    """Download a packaged chips zip from any public URL and restore it.
+
+    Account-independent: point this at a GitHub Release asset, a Hugging Face dataset
+    file, or a shared-Drive direct link, and any Colab (any Google account) can restore
+    the dataset without re-fetching from Planetary Computer.
+    """
+    if not (os.path.exists(cache_zip) and os.path.getsize(cache_zip) > 1_000_000):
+        print(f"[restore-url] downloading {url} ...")
+        _download(url, cache_zip)
+    return restore_chips(cache_zip, dest_dir)
+
+
 def _process_tile(r, masks, scale_col, catalog, out_dir, split, writer,
                   chip_size, window_px, res, keep_empty_frac, rng) -> int:
     import numpy as np
