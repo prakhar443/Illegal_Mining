@@ -207,6 +207,39 @@ def test_continent_of():
     assert continent_of(20, 10) == "Africa"
 
 
+def test_checkpoint_every_epoch_and_resume(tmp_path):
+    """last.pt is written every epoch (not just at the end) so a crash can resume."""
+    from torch.utils.data import DataLoader
+    from PIL import Image
+    from spearnet.data.dataset import LAMESDataset
+    from spearnet.engine import Trainer
+
+    exs = []
+    for _ in range(8):
+        img = Image.fromarray((np.random.rand(32, 32, 3) * 255).astype(np.uint8), "RGB")
+        m = np.zeros((32, 32), np.uint8); m[8:20, 8:20] = 1
+        exs.append({"image": img, "mask": Image.fromarray(m, "L")})
+
+    def cfg(epochs):
+        c = _cfg(bands=3, task="binary", prior_type="csp")
+        c.data.band_order = ["R", "G", "B"]
+        c.data.num_workers = 0; c.data.oversample_rare = False
+        c.optim.epochs = epochs; c.optim.warmup_epochs = 0
+        c.run.device = "cpu"; c.run.out_dir = str(tmp_path / "ckpt"); c.run.val_interval = 1
+        c.loss.auto_class_weights = False
+        return c
+
+    ds = LAMESDataset(exs, cfg(2), train=True)
+    ld = {"train": DataLoader(ds, batch_size=4), "val": DataLoader(ds, batch_size=4)}
+
+    c1 = cfg(2); Trainer(build_model(c1), ld, c1).train()
+    assert os.path.exists(os.path.join(c1.run.out_dir, "last.pt"))  # written during run
+
+    c2 = cfg(4); c2.run.resume = os.path.join(c2.run.out_dir, "last.pt")
+    t2 = Trainer(build_model(c2), ld, c2)
+    assert t2.start_epoch == 2   # resumes from the last completed epoch
+
+
 def test_package_and_restore_chips(tmp_path):
     from spearnet.data.fetch import package_chips, restore_chips
     src = tmp_path / "chips"

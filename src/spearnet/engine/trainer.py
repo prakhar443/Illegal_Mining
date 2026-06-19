@@ -98,13 +98,19 @@ class Trainer:
         cfg = self.cfg
         for epoch in range(self.start_epoch, cfg.optim.epochs):
             self._train_one_epoch(epoch)
+
+            is_best = False
             if (epoch + 1) % cfg.run.val_interval == 0 and "val" in self.loaders:
                 results = evaluate(self.model, self.loaders["val"], cfg, self.device)
                 metric = results.get(cfg.run.save_best_metric, results["miou"])
                 self._log_val(epoch, results, metric)
-                self._save_checkpoint(epoch, metric, is_best=metric > self.best_metric)
+                is_best = metric > self.best_metric
                 self.best_metric = max(self.best_metric, metric)
-        self._save_checkpoint(cfg.optim.epochs - 1, self.best_metric, is_best=False, name="last.pt")
+
+            # Always checkpoint 'last.pt' EVERY epoch (full optimizer/scheduler/AMP/epoch
+            # state) so a Colab crash resumes from here; write 'best.pt' on improvement.
+            self._save_checkpoint(epoch, self.best_metric, is_best=is_best, name="last.pt")
+
         return {"best_metric": self.best_metric, "history": self.history}
 
     def _train_one_epoch(self, epoch: int) -> None:
