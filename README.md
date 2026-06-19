@@ -74,6 +74,10 @@ metrics + CSP explainability overlays.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/prakhar443/Illegal_Mining/blob/spearnet-colab/notebooks/SPEARNet_LAMES_Colab.ipynb)
 
+> **Working in a team?** See [`docs/TEAM_SETUP.md`](docs/TEAM_SETUP.md) — interns fork the
+> repo (your original stays protected, changes only via PR review) and each keeps the
+> dataset on their **own** Google Drive (fetch once, share a link, everyone restores).
+
 ### Local
 
 ```bash
