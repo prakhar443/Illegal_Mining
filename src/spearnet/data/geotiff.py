@@ -148,15 +148,18 @@ def build_mining_dataloaders(cfg: Config, splits) -> Dict[str, DataLoader]:
     all_rows = build_mining_examples(cfg)
     caps = {"train": cfg.data.subset_train, "val": cfg.data.subset_val,
             "test": cfg.data.subset_test, "ood": None}
-    rng = random.Random(cfg.run.seed)
 
     loaders: Dict[str, DataLoader] = {}
     for split in splits:
         rows = list(all_rows.get(split, []))
         if not rows:
             raise ValueError(f"No chips for split '{split}'. Check manifest / holdout_regions.")
-        if split == "train":
-            rng.shuffle(rows)
+        # Shuffle EVERY split deterministically before capping. The manifest is ordered
+        # artisanal-first then industrial (separate fetch passes), so capping an unshuffled
+        # val/test would drop a whole class from evaluation; shuffling keeps subsets
+        # class-representative. (Per-split seed so val != train ordering.)
+        _split_off = {"train": 0, "val": 1, "test": 2, "ood": 3}.get(split, 9)
+        random.Random(cfg.run.seed + _split_off).shuffle(rows)
         cap = caps.get(split)
         if cap is not None:
             rows = rows[:cap]
