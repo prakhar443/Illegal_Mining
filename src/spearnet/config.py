@@ -228,3 +228,15 @@ def load_config(path: Optional[str] = None, overrides: Optional[Dict[str, Any]] 
             cur[parts[-1]] = value
         cfg = Config.from_dict(d)
     return cfg
+
+
+def override_config(cfg: "Config", overrides: Dict[str, Any]) -> "Config":
+    """Return a copy of ``cfg`` with dotted ``overrides`` applied (e.g. {"model.name": "unet"})."""
+    d = cfg.to_dict()
+    for key, value in (overrides or {}).items():
+        cur = d
+        parts = key.split(".")
+        for p in parts[:-1]:
+            cur = cur[p]
+        cur[parts[-1]] = value
+    return Config.from_dict(d)

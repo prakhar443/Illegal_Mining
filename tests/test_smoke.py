@@ -240,6 +240,60 @@ def test_checkpoint_every_epoch_and_resume(tmp_path):
     assert t2.start_epoch == 2   # resumes from the last completed epoch
 
 
+def test_override_config():
+    from spearnet.config import Config, override_config
+    cfg = Config()
+    c2 = override_config(cfg, {"model.name": "unet", "data.bands": 3, "optim.epochs": 7})
+    assert c2.model.name == "unet" and c2.data.bands == 3 and c2.optim.epochs == 7
+    assert cfg.model.name == "spearnet"   # original untouched
+
+
+def test_run_comparison_smoke(tmp_path):
+    rasterio = __import__("importlib").util.find_spec("rasterio")
+    if rasterio is None:
+        import pytest; pytest.skip("rasterio not installed")
+    import csv, rasterio as rio
+    from rasterio.transform import from_origin
+    from spearnet.config import Config
+    from spearnet.engine import run_comparison
+
+    root = tmp_path / "chips"
+    def w(p, a):
+        c, h, wd = a.shape
+        with rio.open(p, "w", driver="GTiff", height=h, width=wd, count=c, dtype=a.dtype,
+                      crs="EPSG:32633", transform=from_origin(0, 0, 10, 10)) as d:
+            d.write(a)
+    rows = []
+    for split, n in [("train", 8), ("val", 4)]:
+        d = root / split; d.mkdir(parents=True)
+        for i in range(n):
+            ip, mp = str(d / f"{i}_img.tif"), str(d / f"{i}_mask.tif")
+            w(ip, (np.random.rand(6, 32, 32) * 3000).astype("uint16"))
+            m = np.zeros((1, 32, 32), "uint8"); m[0, 8:24, 8:24] = 1; w(mp, m)
+            rows.append(dict(img=ip, mask=mp, split=split, scale="artisanal" if i % 2 else "industrial",
+                             minetype1="Surface", region="Africa", has_mining="1", tile_id=i, s2_tile_id="x"))
+    with open(root / "manifest.csv", "w", newline="") as f:
+        wr = csv.DictWriter(f, fieldnames=list(rows[0].keys())); wr.writeheader(); [wr.writerow(r) for r in rows]
+
+    base = Config()
+    base.data.source = "mining"; base.data.chips_root = str(root)
+    base.data.manifest = str(root / "manifest.csv"); base.data.task = "scale3"
+    base.data.bands = 6; base.data.image_size = 32; base.data.batch_size = 4
+    base.data.num_workers = 0; base.model.pretrained = False; base.optim.warmup_epochs = 0
+    base.run.device = "cpu"; base.loss.auto_weight_samples = 8
+
+    exp = {"A4 gate": {"model.csp_mode": "gate"},
+           "A1 none": {"model.csp_mode": "none", "model.use_edge_head": False}}
+    res = run_comparison(base, exp, str(tmp_path / "r.json"), str(tmp_path / "runs"),
+                         epochs=1, subset_train=6, subset_val=4, device="cpu")
+    assert len(res) == 2
+    assert all("mIoU" in r or "error" in r for r in res)
+    # resume: second call skips both (no new rows)
+    res2 = run_comparison(base, exp, str(tmp_path / "r.json"), str(tmp_path / "runs"),
+                          epochs=1, subset_train=6, subset_val=4, device="cpu")
+    assert len(res2) == 2
+
+
 def test_package_and_restore_chips(tmp_path):
     from spearnet.data.fetch import package_chips, restore_chips
     src = tmp_path / "chips"
