@@ -85,6 +85,40 @@ def run_comparison(
     return rows
 
 
+def comparison_status(
+    experiments: Dict[str, Dict], results_path: str, runs_root: str, epochs: int = 40,
+) -> List[Dict]:
+    """Report progress for each experiment: done / resumable@epoch / not started.
+
+    Reads the shared results JSON (completed runs) and each variant's ``last.pt``
+    (in-progress checkpoint) so you can see at a glance what to re-run after a crash.
+    """
+    done = {r.get("name"): r for r in _load_results(results_path)}
+    out: List[Dict] = []
+    for name in experiments:
+        rec = done.get(name)
+        if rec is not None and "error" not in rec:
+            status = "done"
+            ep = epochs
+            miou = rec.get("mIoU")
+        elif rec is not None and "error" in rec:
+            status, ep, miou = "error (will redo on re-run)", None, None
+        else:
+            last = os.path.join(runs_root, _safe(name), "last.pt")
+            if os.path.exists(last):
+                try:
+                    ck = torch.load(last, map_location="cpu")
+                    nxt = int(ck.get("epoch", -1)) + 1
+                    status = f"resumable @ epoch {nxt}/{epochs}"
+                    ep, miou = nxt, round(float(ck.get("best_metric", float('nan'))), 4)
+                except Exception:  # noqa: BLE001
+                    status, ep, miou = "resumable (last.pt present)", None, None
+            else:
+                status, ep, miou = "not started", 0, None
+        out.append({"name": name, "status": status, "epoch": ep, "best_mIoU": miou})
+    return out
+
+
 def _run_one(base_cfg, name, ov, runs_root, epochs, subset_train, subset_val, dev) -> Dict:
     cfg = override_config(base_cfg, ov)
     cfg.optim.epochs = epochs
