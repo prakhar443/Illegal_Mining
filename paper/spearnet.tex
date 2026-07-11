@@ -147,13 +147,18 @@ and the data-preparation pipeline are released for reproducibility.
 
 \paragraph{Mining and ASM mapping from satellite imagery.}
 Global inventories of mining land use have been assembled from manual and semi-automatic
-interpretation of optical imagery \citep{maus2022global} and, more recently, from deep
-learning applied to Sentinel data \citep{tang2023mining}. For ASM specifically,
-\citet{gallwey2020asm} trained a multispectral convolutional network to detect
-small-scale mining in Ghana, and \citet{balaniuk2020mining} addressed mining and tailings
-detection with deep networks. A consistent theme is that fragmented, low-density mining is
-hard to recover and easily confused with spectrally similar background, motivating methods
-that inject physical priors and explicitly optimize recall.
+interpretation of optical imagery \citep{maus2022global} and, more recently, from
+high-resolution satellite mapping \citep{tang2023mining}. Deep learning is increasingly
+applied to mining footprints: \citet{saputra2025multimodal} performed multi-modal semantic
+segmentation of mining land covers across 37 sites worldwide, and
+\citet{balaniuk2020mining} addressed mining and tailings-dam detection at national scale.
+For ASM specifically, \citet{gallwey2020asm} trained a multispectral convolutional network
+to detect small-scale mining in Ghana, and \citet{couttenier2022asm} mapped ASM over
+1.75 million~km$^2$ of West Africa with a segmentation network. A consistent theme across
+these studies is that fragmented, low-density mining is hard to recover and easily confused
+with spectrally similar background, motivating methods that inject physical priors and
+explicitly optimize recall; none of them, moreover, reports the computational cost of the
+deployed model, which is central here.
 
 \paragraph{Semantic segmentation architectures.}
 Encoder--decoder networks with skip connections, epitomized by U-Net
@@ -177,8 +182,8 @@ modern segmentation network. We revisit these indices as a differentiable, expla
 
 \paragraph{Imbalanced-segmentation losses.}
 Region-overlap losses (Dice \citep{milletari2016vnet,sudre2017generaliseddice}, Tversky
-\citep{salehi2017tversky}), the focal loss \citep{lin2017focal} and boundary-aware losses
-\citep{kervadec2019boundary} were introduced to counter class imbalance and to sharpen
+\citep{salehi2017tversky}), the focal loss \citep{lin2020focal} and boundary-aware losses
+\citep{kervadec2021boundary} were introduced to counter class imbalance and to sharpen
 object boundaries. We combine them into a single recall-oriented objective tailored to the
 small, fragmented artisanal class.
 
@@ -329,7 +334,7 @@ positives, directly favouring recall of the rare classes:
      {\sum_i p_{c,i} g_{c,i} + \alpha\sum_i p_{c,i}(1-g_{c,i}) + \beta\sum_i (1-p_{c,i}) g_{c,i}}.
 \label{eq:tversky}
 \end{equation}
-A class-weighted focal term \citep{lin2017focal} supplies a per-pixel gradient that focuses
+A class-weighted focal term \citep{lin2020focal} supplies a per-pixel gradient that focuses
 on hard, rare-class pixels,
 \begin{equation}
 \mathcal{L}_{\mathrm{F}} = -\frac{1}{N}\sum_{i} w_{y_i}\, (1-p_{y_i,i})^{\gamma}\, \log p_{y_i,i},
@@ -365,8 +370,9 @@ trained with AdamW \citep{loshchilov2019adamw} at a base learning rate of
 $3\times10^{-4}$, weight decay $10^{-4}$, a cosine schedule \citep{loshchilov2017sgdr} with a
 three-epoch linear warm-up, mixed-precision, gradient clipping at norm $1$, batch size
 $10$, and $40$ epochs. Implementation uses PyTorch \citep{paszke2019pytorch}; convolutional
-baselines use the implementations of \citet{iakubovskii2019smp} with the same six-band
-input, loss and schedule for a controlled comparison. Training used a single NVIDIA A100
+baselines use the implementations of \citet{iakubovskii2019smp} with ResNet-34 encoders
+\citep{he2016resnet} and the same six-band input, loss and schedule for a controlled
+comparison. Training used a single NVIDIA A100
 GPU; the model also fits and trains within the memory of a free-tier 16\,GB accelerator.
 
 \subsection{Evaluation}\label{sec:eval}
