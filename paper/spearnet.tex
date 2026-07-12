@@ -276,17 +276,17 @@ edge/boundary head for deep supervision. Figure~\ref{fig:arch} shows the archite
 
 \begin{figure}[t]
 \centering
-% ---- FIGURE PLACEHOLDER: replace with the architecture diagram ----
-\fbox{\begin{minipage}[c][0.30\textheight][c]{0.92\linewidth}\centering
-\textit{[Figure~\ref{fig:arch}: SPEAR-Net architecture. Six-band Sentinel-2 input
-$\rightarrow$ PISP index computation and gate $\rightarrow$ MobileNetV3-Small encoder
-(stem adapted to six bands) $\rightarrow$ depthwise-separable U-Net decoder with
-prior-gated skips $\rightarrow$ segmentation head + edge head. Insert vector figure
-\texttt{figures/architecture.pdf}.]}
-\end{minipage}}
-\caption{SPEAR-Net architecture. The four spectral indices are turned into a single spatial
-attention map that gates each decoder skip connection; an auxiliary edge head provides deep
-supervision.}
+% Vector figure produced by figures/architecture.tex (compile it separately to
+% figures/architecture.pdf; drop the real thumbnails into figures/ first).
+\includegraphics[width=\linewidth]{figures/architecture.pdf}
+\caption{SPEAR-Net architecture. Four physically-informed spectral indices (NDVI, MNDWI,
+NDTI, BSI) are computed on the fly and passed through a small gate to a single spatial
+attention map $A$. In the depthwise-separable U-Net decoder each encoder skip is first
+\emph{gated} by the attention, $F'=F\odot(1+\alpha A_{\downarrow})$ with a per-scale
+learnable $\alpha$, and then \emph{concatenated} (\,\textcircled{\scriptsize C}\,) with the
+upsampled decoder feature; the deepest feature (s5) is the ungated bottleneck. A
+segmentation head and an auxiliary edge head (deep supervision) produce the outputs, and
+the compound loss compares them against the ground-truth mask and its Sobel boundary.}
 \label{fig:arch}
 \end{figure}
 
