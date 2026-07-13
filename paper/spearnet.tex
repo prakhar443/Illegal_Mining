@@ -18,6 +18,8 @@
 \usepackage{lmodern}
 \usepackage[hmargin=2.4cm,vmargin=2.6cm]{geometry}
 \usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
 \usepackage{graphicx}
 \graphicspath{{paper_figures/}{figures/}}
 \usepackage{booktabs}
@@ -268,7 +270,8 @@ SPEAR-Net is an encoder--decoder segmenter with three additions targeted at fine
 mining: (i) an ImageNet-pretrained lightweight encoder whose stem is adapted from three to
 six input bands; (ii) a physically-informed spectral prior (PISP) that modulates the
 decoder skip connections; and (iii) a segmentation head paired with an auxiliary
-edge/boundary head for deep supervision. Figure~\ref{fig:arch} shows the architecture.
+edge/boundary head for deep supervision. Figure~\ref{fig:arch} shows the architecture and
+Algorithm~\ref{alg:spearnet} summarizes a full training step.
 
 \begin{figure}[t]
 \centering
@@ -380,6 +383,34 @@ The total objective is
             + \lambda_{\mathrm{E}}\mathcal{L}_{\mathrm{E}}.
 \label{eq:total}
 \end{equation}
+
+\begin{algorithm}[t]
+\caption{SPEAR-Net training step for one mini-batch}
+\label{alg:spearnet}
+\begin{algorithmic}[1]
+\Require six-band patch $\mathbf{X}\in\mathbb{R}^{6\times H\times W}$, ground-truth mask
+$\mathbf{Y}$, parameters $\theta$, per-scale gate weights $\{\alpha_k\}$
+\Statex \textbf{Physically-informed spectral prior}
+\State $\mathbf{P}\gets[\mathrm{NDVI},\mathrm{MNDWI},\mathrm{NDTI},\mathrm{BSI}]$ from $\mathbf{X}$ \Comment{Eqs.~\eqref{eq:ndvi}--\eqref{eq:bsi}}
+\State $\mathbf{A}\gets\sigma\!\big(g(\mathbf{P})\big)$ \Comment{single-channel attention map, Eq.~\eqref{eq:gate}}
+\Statex \textbf{Encoder (MobileNetV3-Small, strides $2$--$32$)}
+\State $(\mathbf{s}_1,\dots,\mathbf{s}_5)\gets\mathrm{Encoder}(\mathbf{X})$
+\Statex \textbf{Prior-gated depthwise-separable decoder}
+\State $\mathbf{u}\gets\mathbf{s}_5$ \Comment{ungated bottleneck}
+\For{$k=4$ \textbf{down to} $1$}
+  \State $\mathbf{u}\gets\mathrm{Upsample}(\mathbf{u})$ to the resolution of $\mathbf{s}_k$
+  \State $\mathbf{F}'_k\gets\mathbf{s}_k\odot\big(1+\alpha_k\,\mathbf{A}_{\downarrow k}\big)$ \Comment{gate skip, Eq.~\eqref{eq:apply}}
+  \State $\mathbf{u}\gets\mathrm{DSConv}\big([\,\mathbf{u};\,\mathbf{F}'_k\,]\big)$ \Comment{concatenate, then refine}
+\EndFor
+\State $\mathbf{u}\gets\mathrm{Upsample}_{256^2}(\mathbf{u})$
+\Statex \textbf{Heads, objective, and update}
+\State $\hat{\mathbf{Y}}\gets\mathrm{SegHead}(\mathbf{u})$;\quad $\hat{\mathbf{e}}\gets\mathrm{EdgeHead}(\mathbf{u})$
+\State $\mathbf{B}\gets\mathrm{Sobel}(\mathbf{Y})$ \Comment{boundary target}
+\State $\mathcal{L}\gets\lambda_{\mathrm{D}}\mathcal{L}_{\mathrm{Dice}}+\lambda_{\mathrm{T}}\mathcal{L}_{\mathrm{Tv}}+\lambda_{\mathrm{F}}\mathcal{L}_{\mathrm{F}}+\lambda_{\mathrm{B}}\mathcal{L}_{\mathrm{B}}+\lambda_{\mathrm{E}}\mathcal{L}_{\mathrm{E}}$ \Comment{Eqs.~\eqref{eq:dice}--\eqref{eq:total}}
+\State $\theta\gets\mathrm{AdamW}\big(\theta,\ \nabla_{\theta}\mathcal{L}\big)$
+\State \Return updated $\theta$
+\end{algorithmic}
+\end{algorithm}
 
 \subsection{Training details}\label{sec:training}
 Unless stated otherwise we use
