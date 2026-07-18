@@ -22,7 +22,7 @@ checkpoints/
 logs/
 wandb/
 outputs/
-figures/
+/figures/
 
 # Data caches (root-level dataset dirs only — NOT the src/spearnet/data package)
 /data/
