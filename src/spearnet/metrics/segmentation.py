@@ -45,6 +45,13 @@ class SegMetrics:
         miou = float(iou[present].mean()) if present.any() else 0.0
         pix_acc = float(tp.sum() / (cm.sum() + eps))
 
+        # Foreground mIoU: exclude class 0 (background), which is ~0.90 for every
+        # variant and inflates the 3-class mIoU (reviewer item E11/F2).
+        fg = present.copy()
+        if fg.size:
+            fg[0] = False
+        fg_miou = float(iou[fg].mean()) if fg.any() else 0.0
+
         per_class = {
             self.class_names[i]: {
                 "iou": float(iou[i]),
@@ -57,10 +64,13 @@ class SegMetrics:
         }
         return {
             "miou": miou,
+            "fg_miou": fg_miou,
             "pixel_acc": pix_acc,
             "mean_f1": float(f1[present].mean()) if present.any() else 0.0,
             "mean_recall": float(recall[present].mean()) if present.any() else 0.0,
             "per_class": per_class,
+            "confusion_matrix": self.confusion.astype(int).tolist(),
+            "class_names": list(self.class_names),
         }
 
 

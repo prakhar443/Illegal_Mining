@@ -27,7 +27,7 @@ Every module is **independently ablatable**.
 ## 📦 Dataset — global mine-segmentation
 
 `SimonJasansky/mine-segmentation` (Zenodo [10.5281/zenodo.14195737](https://doi.org/10.5281/zenodo.14195737),
-Maastricht University). 1,210 mining sites worldwide; masks from Maus et al. (2022) + Tang
+Maastricht University). 1,210 mining sites worldwide (1,514 annotated tiles; confirm with `scripts/diagnostics.py`); masks from Maus et al. (2022) + Tang
 et al. (2023), **manually re-validated** (accuracy 99.78, precision 99.22, recall 95.71).
 License CC-BY-SA-4.0.
 
@@ -81,8 +81,8 @@ metrics + CSP explainability overlays.
 ### Local
 
 ```bash
-git clone https://github.com/prakhar443/illegal_mining.git
-cd illegal_mining
+git clone https://github.com/prakhar443/Illegal_Mining.git
+cd Illegal_Mining
 pip install -r requirements.txt
 pip install -e .
 
@@ -142,9 +142,10 @@ Computed on the fly from the Sentinel-2 bands (`prior_type: pisp`):
 | NDTI | `(R−G)/(R+G)` | turbid / muddy mining water |
 | BSI | `((SWIR1+R)−(NIR+B))/((SWIR1+R)+(NIR+B))` | bare soil / tailings |
 
-Two integration modes: **`concat`** (priors as extra input channels) and the stronger
-**`gate`** (priors → tiny conv → sigmoid attention modulating each decoder skip). Set
-`prior_type: csp` (+ `bands: 3`) for the **RGB-only ablation** that isolates the SWIR
+Two integration modes: **`concat`** (priors as extra input channels) and the recall-oriented
+**`gate`** (priors → tiny conv → sigmoid attention modulating each decoder skip; comparable
+mIoU to `concat` but higher recall — see the paper's ablation). Set `prior_type: csp`
+(+ `bands: 3`) for the **RGB-only ablation** that isolates the SWIR/NIR
 contribution. See [`src/spearnet/models/csp.py`](src/spearnet/models/csp.py) and
 [`src/spearnet/data/priors.py`](src/spearnet/data/priors.py).
 
@@ -198,20 +199,22 @@ is exposed for out-of-region testing. Report in-region vs out-of-region mIoU dro
 
 ## 📜 Citation
 
-If you use this code, please cite the LAMES dataset and (once published) the SPEAR-Net paper.
+If you use this code, please cite the dataset and (once published) the SPEAR-Net paper.
 
 ```bibtex
 @misc{spearnet,
-  title  = {SPEAR-Net: A Lightweight, Color-Prior-Guided, Recall-Optimized Network
-            for Fine-Grained Segmentation of Mining Structures},
+  title  = {Distinguishing Artisanal from Industrial Mining in Sentinel-2 Imagery:
+            A Spectral-Prior, Recall-Oriented Segmentation Approach},
   year   = {2026}
 }
 ```
 
-LAMES dataset: Mineral Resources Engineering, RWTH Aachen + Chair of Data Science in
-Earth Observation, TU Munich; incorporates Maus et al. global mine-polygon annotations.
+Dataset: Jasansky, Maus, Popa \& Wilbik (Maastricht University), *Global ML-ready dataset
+for mining areas in satellite images*, Zenodo, 2024, DOI
+[10.5281/zenodo.14195737](https://doi.org/10.5281/zenodo.14195737); masks derived from
+Maus et al. (2022) and Tang et al. (2023).
 
 ## License
 
-Code released under the MIT License (see [`LICENSE`](LICENSE)). The LAMES dataset is
-CC-BY-4.0.
+Code released under the MIT License (see [`LICENSE`](LICENSE)). The mining annotation
+dataset is **CC-BY-SA-4.0** (copyleft — derivatives must share alike).

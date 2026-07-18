@@ -39,11 +39,19 @@ def main():
     results = evaluate(model, loaders[args.split], cfg, device,
                        compute_area_stratified=args.area_stratified)
 
-    print(json.dumps({k: v for k, v in results.items() if k != "per_class"}, indent=2))
-    print("\nPer-class:")
+    skip = {"per_class", "confusion_matrix", "class_names"}
+    print(json.dumps({k: v for k, v in results.items() if k not in skip}, indent=2))
+    print(f"\nmIoU={results['miou']:.4f}  foreground-mIoU={results.get('fg_miou', float('nan')):.4f}")
+    print("\nPer-class (precision / recall / F1 for Tables 2-4):")
     for cls, m in results["per_class"].items():
         print(f"  {cls:>18}: IoU={m['iou']:.3f} P={m['precision']:.3f} "
               f"R={m['recall']:.3f} F1={m['f1']:.3f} support={m['support']}")
+    if "confusion_matrix" in results:
+        print("\nConfusion matrix (rows = ground truth, cols = prediction):")
+        names = results.get("class_names", [])
+        print("        " + "".join(f"{n[:10]:>12}" for n in names))
+        for r, row in enumerate(results["confusion_matrix"]):
+            print(f"  {names[r][:6]:>6}" + "".join(f"{v:>12d}" for v in row))
 
     out = args.out or os.path.join(cfg.run.out_dir, f"metrics_{args.split}.json")
     with open(out, "w") as f:
