@@ -33,11 +33,20 @@ def main():
     ap.add_argument("--config", required=True)
     ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--split", default="test", choices=["val", "test"])
+    ap.add_argument("--chips-root", default=None,
+                    help="chips dir (overrides the config; manifest is <chips-root>/manifest.csv)")
+    ap.add_argument("--manifest", default=None, help="explicit manifest.csv path")
     ap.add_argument("--max-batches", type=int, default=64, help="cap for the AUC pass")
     ap.add_argument("--out", default="analysis.json")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
+    if args.chips_root:
+        cfg.data.chips_root = args.chips_root
+        cfg.data.manifest = os.path.join(args.chips_root, "manifest.csv")
+    if args.manifest:
+        cfg.data.manifest = args.manifest
+    cfg.data.subset_test = None; cfg.data.subset_val = None
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(cfg).to(device)
     ckpt = torch.load(args.checkpoint, map_location=device)
