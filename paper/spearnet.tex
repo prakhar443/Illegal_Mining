@@ -920,11 +920,23 @@ personal relationships that could have appeared to influence the work reported i
 public, commercial, or not-for-profit sectors.
 
 \section*{Data availability}
-\noindent The mining annotation dataset is publicly available on Zenodo
-(\citealp{jasansky2024dataset}; DOI \texttt{10.5281/zenodo.14195737}, CC-BY-SA-4.0).
-Sentinel-2 Level-2A imagery is openly available and was accessed through Microsoft Planetary
-Computer \citep{planetarycomputer}. All code, experiment configurations and the
-data-preparation pipeline needed to reproduce the results are released at
+\noindent\textbf{Annotations.} The mining annotations are the openly available
+\emph{Global ML-ready Dataset for Mining Areas in Satellite Images} (Jasansky, Maus, Popa and
+Wilbik, Maastricht University), archived on Zenodo \citep{jasansky2024dataset}
+(DOI~\texttt{10.5281/zenodo.14195737}) under the CC-BY-SA-4.0 licence, with the upstream
+preparation code at \url{https://github.com/SimonJasansky/mine-segmentation}. The
+\num{35.6}\,MB package provides mask polygons, bounding boxes, per-site metadata and
+train/validation/test splits for \num{1210} mining sites worldwide; the masks derive from
+Maus et al.\ \cite{maus2022global} and Tang et al.\ \cite{tang2023mining} and were manually
+re-validated (test-set accuracy \num{99.78}\,\%, precision \num{99.22}\,\%, recall
+\num{95.71}\,\%).
+
+\noindent\textbf{Imagery.} Sentinel-2 Level-2A scenes are openly available and were fetched
+on demand, without credentials, from Microsoft Planetary Computer \citep{planetarycomputer};
+only the subset used here is retrieved and cached locally.
+
+\noindent\textbf{Code.} All code, experiment configurations and the data-preparation
+pipeline needed to reproduce our tables are released at
 \url{https://github.com/prakhar443/Illegal_Mining}; a versioned snapshot will be deposited on
 Zenodo and cited by DOI upon acceptance.
 
