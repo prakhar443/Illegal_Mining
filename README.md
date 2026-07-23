@@ -69,8 +69,8 @@ The pipeline reads chips via `chips/manifest.csv`, which carries each chip's ver
 
 Open [`notebooks/SPEARNet_LAMES_Colab.ipynb`](notebooks/SPEARNet_LAMES_Colab.ipynb)
 in Colab, select a **T4 GPU** runtime, and *Run all*. The notebook clones this repo,
-installs dependencies, streams a subset of LAMES, trains SPEAR-Net, and renders
-metrics + CSP explainability overlays.
+installs dependencies, streams a subset of 6-band Sentinel-2 from Planetary Computer,
+trains SPEAR-Net, and renders metrics + PISP explainability overlays.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/prakhar443/Illegal_Mining/blob/spearnet-colab/notebooks/SPEARNet_LAMES_Colab.ipynb)
 
@@ -186,7 +186,7 @@ is exposed for out-of-region testing. Report in-region vs out-of-region mIoU dro
 │   └── benchmark.py
 ├── src/spearnet/
 │   ├── config.py             # dataclass config + YAML loader
-│   ├── data/                 # LAMES dataset, CSP priors, transforms
+│   ├── data/                 # mine-segmentation dataset, PISP priors, transforms
 │   ├── models/               # SPEAR-Net, CSP gate, encoder, decoder, heads, baselines
 │   ├── losses/               # Dice + Tversky + Boundary + edge BCE compound loss
 │   ├── metrics/              # mIoU, per-class IoU, area-stratified recall

@@ -1,76 +1,74 @@
 % =====================================================================
 % SPEAR-Net manuscript.  All results are on the held-out TEST split.
 % ---------------------------------------------------------------------
-% Compiles standalone with pdflatex + bibtex (generic `article` class).
-% Target journal not yet fixed: for Elsevier RSASE reformat to elsarticle
-% and use \bibliographystyle{elsarticle-num}; for Springer ESI use the
-% sn-jnl.cls template and \bibliographystyle{spbasic}. The section layout
-% (Abstract, Keywords, Introduction ... Declarations) fits both.
+% Target journal: Remote Sensing Applications: Society and Environment
+% (Elsevier). Formatted with the elsarticle class + elsarticle-num
+% bibliography style. The [review] option gives double-spaced, single-
+% column output for peer review; switch to [final,5p] for the typeset
+% look. Highlights, cover letter and suggested reviewers are separate
+% files in this folder (highlights.tex, cover_letter.md,
+% suggested_reviewers.md).
 %
 % Figures live in paper_figures/ (see \graphicspath). Compile the
 % standalone figures/architecture.tex separately to architecture.pdf.
 %
 % Build:  pdflatex spearnet ; bibtex spearnet ; pdflatex spearnet ; pdflatex spearnet
 % =====================================================================
-\documentclass[11pt]{article}
+\documentclass[review]{elsarticle}
 
-\usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{lmodern}
-\usepackage[hmargin=2.4cm,vmargin=2.6cm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
 \usepackage{graphicx}
 \graphicspath{{paper_figures/}{figures/}}
 \usepackage{booktabs}
-\usepackage{multirow}
 \usepackage{array}
 \usepackage{siunitx}
 \usepackage{xcolor}
-\usepackage{caption}
-\usepackage{subcaption}
-\usepackage[hidelinks]{hyperref}
 \usepackage{orcidlink}
-\usepackage[numbers,sort&compress]{natbib}
 \usepackage{textcomp}
+\usepackage[hidelinks]{hyperref}
+
+% elsarticle loads natbib internally; select numbered, compressed citations
+% and the Elsevier numeric bibliography style (see \bibliographystyle below).
+\biboptions{numbers,sort&compress}
+\journal{Remote Sensing Applications: Society and Environment}
 
 \sisetup{detect-weight=true,detect-family=true}
 \newcommand{\best}[1]{\textbf{#1}}
-\captionsetup{font=small,labelfont=bf}
-
-\title{\textbf{Distinguishing Artisanal from Industrial Mining in Sentinel-2 Imagery:
-A Spectral-Prior, Recall-Oriented Segmentation Approach and a Diagnosis of Where
-Small-Site Detection Fails}}
-
-\author{%
-Author One\,\orcidlink{0000-0000-0000-0000}$^{1,*}$,\quad
-Author Two$^{1}$,\quad
-Author Three$^{2}$\\[2pt]
-\small $^{1}$ Department, University, City, Country\\
-\small $^{2}$ Department, University, City, Country\\
-\small $^{*}$ Corresponding author: \texttt{corresponding@email.edu}
-}
-\date{}
 
 \begin{document}
-\maketitle
 
-% =====================================================================
+\begin{frontmatter}
+
+\title{Distinguishing Artisanal from Industrial Mining in Sentinel-2 Imagery:
+A Spectral-Prior, Recall-Oriented Segmentation Approach and a Diagnosis of Where
+Small-Site Detection Fails}
+
+%% ---- Replace the placeholder authorship with real names/affiliations before submission ----
+\author[inst1]{Author One\corref{cor1}\,\orcidlink{0000-0000-0000-0000}}
+\ead{corresponding@email.edu}
+\author[inst1]{Author Two}
+\author[inst2]{Author Three}
+\affiliation[inst1]{organization={Department, University},
+            city={City}, country={Country}}
+\affiliation[inst2]{organization={Department, University},
+            city={City}, country={Country}}
+\cortext[cor1]{Corresponding author.}
+
 \begin{abstract}
-\noindent
-Artisanal and small-scale mining (ASM), which is frequently unregulated or illegal, is
-spatially fragmented and spectrally similar to bare soil, rock and turbid water, so it is
-routinely missed by segmentation models and confused with natural background; at the same
-time, continental-to-global monitoring on constrained or free-tier hardware calls for
-compact, low-latency networks. We present \emph{SPEAR-Net}, a compact
-(\num{1.06}\,M-parameter, \num{0.60}\,GFLOPs at $256^2$) semantic-segmentation network for
-mapping mining on Sentinel-2 imagery. SPEAR-Net computes four physically-informed spectral
+Artisanal and small-scale mining (ASM), frequently unregulated or illegal, is spatially
+fragmented and spectrally similar to bare soil, rock and turbid water, so it is routinely
+missed by segmentation models and confused with background; meanwhile, continental
+monitoring on free-tier hardware calls for compact, low-latency networks. We present
+\emph{SPEAR-Net}, a compact (\num{1.06}\,M-parameter, \num{0.60}\,GFLOPs at $256^2$)
+segmentation network for mapping mining on Sentinel-2 imagery. It computes four spectral
 indices---NDVI, MNDWI, NDTI and BSI---on the fly from the six visible-to-shortwave-infrared
-bands and fuses them as an explainable spatial-attention prior over the decoder, and it is
-trained with a recall-weighted, boundary-aware objective designed for small, fragmented
-targets. We train and evaluate on a globally distributed, expert-verified dataset that
-provides an explicit \emph{artisanal-versus-industrial} label. On the held-out test split
+bands and fuses them as an explainable attention prior over the decoder, and is trained with
+a recall-weighted, boundary-aware objective for small, fragmented targets. We evaluate on a
+globally distributed, expert-verified dataset with an explicit
+\emph{artisanal-versus-industrial} label. On the held-out test split
 of the three-class task, SPEAR-Net reaches \num{0.57}--\num{0.62} mIoU, on par with
 U-Net, DeepLabV3+ and U-Net++ (\num{0.56}--\num{0.60}) despite \num{21}--\num{25}$\times$
 fewer parameters and \num{26}--\num{62}$\times$ fewer floating-point operations. More
@@ -80,18 +78,20 @@ reaches \num{0.61} (concatenated prior) and \num{0.54} (gated prior), exceeding 
 baseline (\num{0.42}--\num{0.51}) and an RGB-only prior (\num{0.44}), so the gain is
 specifically attributable to the near-infrared/shortwave-infrared bands. The gated variant
 attains the highest recall on the policy-critical artisanal class (\num{0.75}). Efficiency
-gains concentrate where deployment is constrained---roughly \num{5}$\times$ lower CPU
+gains concentrate where deployment is constrained---\num{5}--\num{12}$\times$ lower CPU
 latency and \num{5}--\num{11}$\times$ lower peak memory than the baselines---rather than in
-GPU throughput. We position SPEAR-Net as an accurate-and-frugal screening tool for
-large-area artisanal-mining monitoring, and we report an honest diagnosis of the remaining
-small-site error and of the train/test and geographic composition effects that bound the
-conclusions.
+GPU throughput. We position SPEAR-Net as an accurate, frugal screening tool for large-area
+artisanal-mining monitoring, and we report an honest diagnosis of the remaining small-site
+error and the composition effects that bound the conclusions.
 \end{abstract}
 
-\vspace{4pt}
-\noindent\textbf{Keywords:} artisanal and small-scale mining; mining governance; semantic
-segmentation; Sentinel-2; spectral indices; class imbalance; recall-optimized loss;
-area-stratified evaluation; efficient deep learning.
+\begin{keyword}
+artisanal and small-scale mining \sep mining governance \sep semantic segmentation \sep
+Sentinel-2 \sep spectral indices \sep class imbalance \sep recall-optimized loss \sep
+area-stratified evaluation
+\end{keyword}
+
+\end{frontmatter}
 
 % =====================================================================
 \section{Introduction}\label{sec:intro}
@@ -123,7 +123,7 @@ representative subset trains comfortably on free-tier hardware. Crucially, this 
 carries an explicit, manually validated \emph{scale} attribute (artisanal vs.\ industrial),
 making the small-scale/illegal-prone class \emph{trainable} rather than a near-empty pixel
 category. Fetching the raw bands ourselves restores the near-infrared (NIR) and
-shortwave-infrared (SWIR) channels, enabling a physically grounded spectral prior, and the
+shortwave-infrared (SWIR) channels, enabling a spectrally grounded prior, and the
 global footprint enables a geographic generalization protocol seldom evaluated in the
 mining literature.
 
@@ -135,7 +135,7 @@ We frame mining segmentation around the policy-relevant scale distinction and sh
 convolutional baselines that are \num{21}--\num{25}$\times$ larger and \num{26}--\num{62}$\times$
 more costly (Section~\ref{sec:results-main}).
 \item \textbf{A spectral prior that helps precisely where scale does not.} Our
-physically-informed prior improves recall on the hardest small ($<32^2$\,px) sites beyond
+spectral-index prior improves recall on the hardest small ($<32^2$\,px) sites beyond
 what \num{21}--\num{25}$\times$ larger baselines achieve, and an RGB-only variant does not,
 isolating the contribution of the NIR/SWIR bands (Sections~\ref{sec:results-area},
 \ref{sec:results-ablation}).
@@ -288,7 +288,7 @@ applied; the spectral indices below are computed on the fly inside the data load
 \subsection{Overview of SPEAR-Net}\label{sec:arch}
 SPEAR-Net is an encoder--decoder segmenter with three additions targeted at fine-grained
 mining: (i) an ImageNet-pretrained lightweight encoder whose stem is adapted from three to
-six input bands; (ii) a physically-informed spectral prior (PISP) that modulates the
+six input bands; (ii) a spectral-index prior (PISP) that modulates the
 decoder skip connections; and (iii) a segmentation head paired with an auxiliary
 edge/boundary head for deep supervision. Figure~\ref{fig:arch} shows the architecture and
 Algorithm~\ref{alg:spearnet} summarizes a full training step.
@@ -298,7 +298,7 @@ Algorithm~\ref{alg:spearnet} summarizes a full training step.
 % Vector figure produced by architecture.tex (compile it separately to
 % architecture.pdf after dropping the real thumbnails into paper_figures/).
 \includegraphics[width=\linewidth]{architecture}
-\caption{SPEAR-Net architecture. Four physically-informed spectral indices (NDVI, MNDWI,
+\caption{SPEAR-Net architecture. Four spectral indices (NDVI, MNDWI,
 NDTI, BSI) are computed on the fly and passed through a small gate to a single spatial
 attention map $A$. In the depthwise-separable U-Net decoder each encoder skip is first
 \emph{gated} by the attention, $F'=F\odot(1+\alpha A_{\downarrow})$ with a per-scale
@@ -319,8 +319,8 @@ U-Net-style path built from depthwise-separable convolution blocks
 \citep{chollet2017xception} with channel widths $\{128,64,48,32\}$, progressively upsampling
 and fusing gated skip features.
 
-\subsection{Physically-informed spectral prior (PISP)}\label{sec:pisp}
-We term the prior \emph{physically-informed} because its indices are normalized band ratios
+\subsection{Spectral-index prior (PISP)}\label{sec:pisp}
+We term this a \emph{spectral-index prior} (PISP) because its channels are normalized band ratios
 grounded in the physical reflectance behaviour of surface materials---chlorophyll
 absorption and near-infrared scattering for vegetation, strong SWIR absorption by water,
 and the high visible/SWIR reflectance of exposed soil---rather than being learned from data;
@@ -611,7 +611,7 @@ skip features where the spectral evidence is strong. As an independent check of 
 prior encodes, we use the gate's attention map directly as a pixel-wise foreground detector:
 against the ground-truth mask on the test split it attains an ROC-AUC of \num{0.638}
 ($n=\num{3.2}$\,M pixels)---well above chance ($0.5$) but far from a standalone segmenter,
-consistent with its intended role as a soft, physically-grounded prior that the
+consistent with its intended role as a soft, spectrally-grounded prior that the
 recall-weighted decoder refines rather than a segmentation output in itself.
 Figure~\ref{fig:ablbars} summarizes the mining-class IoUs across variants.
 
@@ -740,7 +740,7 @@ fragmented sites and artisanal/industrial confusions).}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{priors}
-\caption{The four physically-informed spectral indices computed on the fly
+\caption{The four spectral indices computed on the fly
 (Eqs.~\ref{eq:ndvi}--\ref{eq:bsi}).}
 \label{fig:priors}
 \end{figure}
@@ -836,21 +836,34 @@ leave-each-region-out evaluation with matched composition, and transfer to auxil
 domains.
 
 % =====================================================================
-\section*{Declarations}
-\small
-\noindent\textbf{Funding.} [To be completed.]\\
-\noindent\textbf{Competing interests.} The authors declare no competing interests.\\
-\noindent\textbf{Data availability.} The mining annotation dataset is publicly available
-\citep{jasansky2024dataset}; Sentinel-2 imagery is openly available and was accessed via an
-open cloud archive \citep{planetarycomputer}.\\
-\noindent\textbf{Code availability.} Code, configurations and the data-preparation pipeline
-are released at \url{https://github.com/prakhar443/Illegal_Mining}.\\
-\noindent\textbf{Author contributions.} [To be completed.]
+\section*{CRediT authorship contribution statement}
+%% ---- Replace names and refine roles from the CRediT taxonomy before submission ----
+\noindent\textbf{Author One:} Conceptualization, Methodology, Software, Formal analysis,
+Investigation, Writing -- original draft, Visualization. \textbf{Author Two:} Data curation,
+Validation, Writing -- review \& editing. \textbf{Author Three:} Supervision, Funding
+acquisition, Writing -- review \& editing.
+
+\section*{Declaration of competing interest}
+\noindent The authors declare that they have no known competing financial interests or
+personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{Funding}
+%% ---- State grant sources and numbers, or the sentence below if none ----
+\noindent This research did not receive any specific grant from funding agencies in the
+public, commercial, or not-for-profit sectors. [Replace with grant details if applicable.]
+
+\section*{Data availability}
+\noindent The mining annotation dataset is publicly available on Zenodo
+(\citealp{jasansky2024dataset}; DOI \texttt{10.5281/zenodo.14195737}, CC-BY-SA-4.0).
+Sentinel-2 Level-2A imagery is openly available and was accessed through Microsoft Planetary
+Computer \citep{planetarycomputer}. All code, experiment configurations and the
+data-preparation pipeline needed to reproduce the results are released at
+\url{https://github.com/prakhar443/Illegal_Mining} and archived on Zenodo
+[insert release DOI at submission].
 
 % =====================================================================
-% For Springer submission use \bibliographystyle{spbasic} (ships with the Springer Nature
-% template). plainnat is used here so the manuscript compiles standalone anywhere.
-\bibliographystyle{plainnat}
+% Elsevier numeric style shipped with the elsarticle class.
+\bibliographystyle{elsarticle-num}
 \bibliography{references}
 
 \end{document}
