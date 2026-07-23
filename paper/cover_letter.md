@@ -5,7 +5,7 @@ letterhead, and remove this line.)*
 
 ---
 
-[Date]
+23 July 2026
 
 To the Editor-in-Chief
 *Remote Sensing Applications: Society and Environment*
@@ -60,6 +60,7 @@ Thank you for your consideration.
 
 Sincerely,
 
-[Corresponding Author Name], on behalf of all authors
-[Department, University]
-[Email]
+Prakhar Mishra, on behalf of all authors
+(Bhavya Yajush Awasthi, Prakhar Mishra, Tanuja, Akshita Mishra, Pranav Mishra)
+Department of Information Technology, Delhi Technological University, New Delhi, India
+443prakharmishra@gmail.com

@@ -46,15 +46,26 @@
 A Spectral-Prior, Recall-Oriented Segmentation Approach and a Diagnosis of Where
 Small-Site Detection Fails}
 
-%% ---- Replace the placeholder authorship with real names/affiliations before submission ----
-\author[inst1]{Author One\corref{cor1}\,\orcidlink{0000-0000-0000-0000}}
-\ead{corresponding@email.edu}
-\author[inst1]{Author Two}
-\author[inst2]{Author Three}
-\affiliation[inst1]{organization={Department, University},
-            city={City}, country={Country}}
-\affiliation[inst2]{organization={Department, University},
-            city={City}, country={Country}}
+%% ---- Add \orcidlink{....} after a name once ORCIDs are available ----
+\author[inst1]{Bhavya Yajush Awasthi}
+\author[inst2]{Prakhar Mishra\corref{cor1}}
+\ead{443prakharmishra@gmail.com}
+\author[inst3]{Tanuja}
+\author[inst4]{Akshita Mishra}
+\author[inst5]{Pranav Mishra}
+
+\affiliation[inst1]{organization={Department of Computer Science, Delhi Skill and
+            Entrepreneurship University, Okhla-II Campus},
+            city={New Delhi}, country={India}}
+\affiliation[inst2]{organization={Department of Information Technology, Delhi Technological
+            University}, city={New Delhi}, country={India}}
+\affiliation[inst3]{organization={Department of Computer Science and Engineering, Central
+            University of Haryana}, city={New Delhi}, country={India}}
+\affiliation[inst4]{organization={Department of Geospatial Science and Technology, Delhi
+            Technological University}, city={New Delhi}, country={India}}
+\affiliation[inst5]{organization={Department of Computer Science and Engineering
+            (Data Science and Artificial Intelligence), Integral University},
+            city={Lucknow}, country={India}}
 \cortext[cor1]{Corresponding author.}
 
 \begin{abstract}
@@ -851,20 +862,21 @@ domains.
 
 % =====================================================================
 \section*{CRediT authorship contribution statement}
-%% ---- Replace names and refine roles from the CRediT taxonomy before submission ----
-\noindent\textbf{Author One:} Conceptualization, Methodology, Software, Formal analysis,
-Investigation, Writing -- original draft, Visualization. \textbf{Author Two:} Data curation,
-Validation, Writing -- review \& editing. \textbf{Author Three:} Supervision, Funding
-acquisition, Writing -- review \& editing.
+%% ---- Roles follow the CRediT taxonomy; adjust to reflect actual contributions ----
+\noindent\textbf{Bhavya Yajush Awasthi:} Software, Investigation, Validation, Writing --
+original draft. \textbf{Prakhar Mishra:} Conceptualization, Methodology, Software, Formal
+analysis, Writing -- original draft, Visualization. \textbf{Tanuja:} Data curation,
+Validation, Writing -- review \& editing. \textbf{Akshita Mishra:} Data curation,
+Investigation, Writing -- review \& editing. \textbf{Pranav Mishra:} Formal analysis,
+Validation, Writing -- review \& editing.
 
 \section*{Declaration of competing interest}
 \noindent The authors declare that they have no known competing financial interests or
 personal relationships that could have appeared to influence the work reported in this paper.
 
 \section*{Funding}
-%% ---- State grant sources and numbers, or the sentence below if none ----
 \noindent This research did not receive any specific grant from funding agencies in the
-public, commercial, or not-for-profit sectors. [Replace with grant details if applicable.]
+public, commercial, or not-for-profit sectors.
 
 \section*{Data availability}
 \noindent The mining annotation dataset is publicly available on Zenodo
@@ -872,8 +884,8 @@ public, commercial, or not-for-profit sectors. [Replace with grant details if ap
 Sentinel-2 Level-2A imagery is openly available and was accessed through Microsoft Planetary
 Computer \citep{planetarycomputer}. All code, experiment configurations and the
 data-preparation pipeline needed to reproduce the results are released at
-\url{https://github.com/prakhar443/Illegal_Mining} and archived on Zenodo
-[insert release DOI at submission].
+\url{https://github.com/prakhar443/Illegal_Mining}; a versioned snapshot will be deposited on
+Zenodo and cited by DOI upon acceptance.
 
 % =====================================================================
 % Elsevier numeric style shipped with the elsarticle class.
