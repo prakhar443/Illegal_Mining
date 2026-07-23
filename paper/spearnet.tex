@@ -28,7 +28,9 @@
 \usepackage{xcolor}
 \usepackage{orcidlink}
 \usepackage{textcomp}
-\usepackage[hidelinks]{hyperref}
+% Load without options so it never clashes if the class preloads hyperref.
+\usepackage{hyperref}
+\hypersetup{hidelinks}
 
 % elsarticle loads natbib internally; select numbered, compressed citations
 % and the Elsevier numeric bibliography style (see \bibliographystyle below).
