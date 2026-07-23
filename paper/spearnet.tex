@@ -749,6 +749,19 @@ is constrained: CPU latency is \num{5}--\num{12}$\times$ lower (\SI{43}{\milli\s
 $10\,980^2$-pixel Sentinel-2 tile ($\approx$\num{1764} chips) is screened in well under a
 minute on a single GPU by any of the models, so the practical differentiator for
 large-area, credential-free monitoring is the CPU/memory footprint rather than raw speed.
+Figure~\ref{fig:latency} plots accuracy against latency on both processors and makes the
+split explicit: on the GPU SPEAR-Net sits among the baselines, whereas on the CPU it is
+displaced far to the low-latency side at comparable mIoU.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{fig_latency}
+\caption{Accuracy versus per-chip inference latency on a GPU (left) and a single-threaded
+CPU (right). SPEAR-Net is not faster than the baselines on the GPU, but is
+\num{5}--\num{12}$\times$ faster on the CPU at comparable mIoU---the regime relevant to
+credential-free, commodity-hardware deployment.}
+\label{fig:latency}
+\end{figure}
 
 \begin{table}[t]
 \centering
