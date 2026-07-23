@@ -21,6 +21,7 @@
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
 \usepackage{graphicx}
+\usepackage{adjustbox}
 \graphicspath{{paper_figures/}{figures/}}
 \usepackage{booktabs}
 \usepackage{array}
@@ -28,6 +29,7 @@
 \usepackage{xcolor}
 \usepackage{orcidlink}
 \usepackage{textcomp}
+\usepackage{indentfirst}   % uniform first-line indent, incl. first paragraph after a heading
 % Load without options so it never clashes if the class preloads hyperref.
 \usepackage{hyperref}
 \hypersetup{hidelinks}
@@ -44,9 +46,8 @@
 
 \begin{frontmatter}
 
-\title{Distinguishing Artisanal from Industrial Mining in Sentinel-2 Imagery:
-A Spectral-Prior, Recall-Oriented Segmentation Approach and a Diagnosis of Where
-Small-Site Detection Fails}
+\title{SPEAR-Net: Spectral-Prior-Guided, Recall-Oriented Segmentation of Artisanal and
+Industrial Mining in Sentinel-2 Imagery}
 
 %% ---- Add \orcidlink{....} after a name once ORCIDs are available ----
 \author[inst1]{Bhavya Yajush Awasthi}
@@ -89,18 +90,18 @@ globally distributed, expert-verified dataset with an explicit
 \emph{artisanal-versus-industrial} label. On the held-out test split
 of the three-class task, SPEAR-Net reaches \num{0.57}--\num{0.62} mIoU, on par with
 U-Net, DeepLabV3+ and U-Net++ (\num{0.56}--\num{0.60}) despite \num{21}--\num{25}$\times$
-fewer parameters and \num{26}--\num{62}$\times$ fewer floating-point operations. More
-importantly, an object-size analysis shows that the six-band spectral prior \emph{improves
-recovery of the hardest small sites}: component recall on small ($<32^2$\,px) objects
-reaches \num{0.61} (concatenated prior) and \num{0.54} (gated prior), exceeding every
-baseline (\num{0.42}--\num{0.51}) and an RGB-only prior (\num{0.44}), so the gain is
-specifically attributable to the near-infrared/shortwave-infrared bands. The gated variant
-attains the highest recall on the policy-critical artisanal class (\num{0.75}). Efficiency
-gains concentrate where deployment is constrained---\num{5}--\num{12}$\times$ lower CPU
-latency and \num{5}--\num{11}$\times$ lower peak memory than the baselines---rather than in
-GPU throughput. We position SPEAR-Net as an accurate, frugal screening tool for large-area
-artisanal-mining monitoring, and we report an honest diagnosis of the remaining small-site
-error and the composition effects that bound the conclusions.
+fewer parameters and \num{26}--\num{62}$\times$ fewer floating-point operations. The more
+telling result concerns object size: the six-band prior \emph{recovers more of the hardest
+small sites}. Component recall on small ($<32^2$\,px) objects reaches \num{0.61}
+(concatenated prior) and \num{0.54} (gated prior), above every baseline
+(\num{0.42}--\num{0.51}) and an RGB-only prior (\num{0.44}), which pins the gain to the
+near-infrared/shortwave-infrared bands. The gated variant gives the highest recall on the
+policy-critical artisanal class (\num{0.75}). The efficiency gains land where deployment is
+constrained---\num{5}--\num{12}$\times$ lower CPU latency and \num{5}--\num{11}$\times$
+lower peak memory than the baselines---rather than in GPU throughput. SPEAR-Net is best read
+as an accurate, frugal screening tool for large-area artisanal-mining monitoring; we close
+with an honest diagnosis of the small-site error that remains and the composition effects
+that bound the conclusions.
 \end{abstract}
 
 \begin{keyword}
@@ -114,36 +115,37 @@ area-stratified evaluation
 % =====================================================================
 \section{Introduction}\label{sec:intro}
 
-Mining reshapes land surfaces at a global scale, and its most policy-sensitive form
----artisanal and small-scale mining (ASM)---is often informal or illegal, environmentally
-damaging, and difficult to govern precisely because it is small, transient and spatially
-scattered \citep{maus2022global,gallwey2020asm}. Earth-observation satellites such as
-Sentinel-2 \citep{drusch2012sentinel2} provide the frequent, free, multispectral coverage
-needed to monitor mining over large areas, and semantic segmentation of satellite imagery
-is the natural tool for delineating mining footprints. Yet a recurring failure mode is
-reported across sensors and architectures: small, fragmented, low-density mining is
-under-detected and confused with bare soil, rock and water, producing low recall and false
-alarms \citep{gallwey2020asm,balaniuk2020mining}. This failure disproportionately affects
-ASM, which is the very class of greatest regulatory interest.
+Mining reshapes the land surface worldwide, and its most policy-sensitive form---artisanal
+and small-scale mining (ASM)---is also the hardest to watch. ASM is often informal or
+outright illegal, it degrades rivers and forests, and it resists governance precisely
+because each site is small, short-lived and scattered across the landscape
+\citep{maus2022global,gallwey2020asm}. Sentinel-2 \citep{drusch2012sentinel2} is well suited
+to the problem: it delivers free, frequent, multispectral coverage over large areas, and
+semantic segmentation is the natural way to turn that imagery into mining maps. Yet one
+failure keeps recurring, across sensors and network designs. Small, fragmented, low-density
+mining is under-detected, and what is detected is easily confused with bare soil, rock or
+water, so recall stays low and false alarms stay high
+\citep{gallwey2020asm,balaniuk2020mining}. The sites that slip through are exactly the ASM
+sites regulators most want to find.
 
-Two practical constraints compound the scientific difficulty. First, the strongest public
-mining annotations are heavy: pixel-wise datasets can reach tens of gigabytes and hundreds
-of thousands of tiles, which is impractical on the free-tier accelerators (e.g. single
-consumer or cloud GPUs with modest memory) available to many operational and academic
-users. Second, prior work rarely reports the computational cost of the proposed model,
-even though deployability---parameter count, floating-point operations (FLOPs) and
-latency---is decisive for continental-scale or edge inference.
+Two practical obstacles sit on top of this scientific difficulty. First, the strongest
+public mining annotations are heavy---pixel-wise datasets that reach tens of gigabytes and
+hundreds of thousands of tiles, well beyond the free-tier GPUs (single consumer or cloud
+cards with modest memory) that most operational and academic groups actually have. Second,
+papers rarely state what their model costs to run, even though the numbers that decide
+deployability---parameter count, floating-point operations (FLOPs) and latency---are what
+determine whether a method can work at continental scale or on the edge.
 
-We argue that these constraints can be turned into design principles. We build on a
-globally distributed, expert-verified mining dataset whose annotation package is compact
-(tens of megabytes) and whose imagery is fetched on demand from an open archive, so a
-representative subset trains comfortably on free-tier hardware. Crucially, this dataset
-carries an explicit, manually validated \emph{scale} attribute (artisanal vs.\ industrial),
-making the small-scale/illegal-prone class \emph{trainable} rather than a near-empty pixel
-category. Fetching the raw bands ourselves restores the near-infrared (NIR) and
-shortwave-infrared (SWIR) channels, enabling a spectrally grounded prior, and the
-global footprint enables a geographic generalization protocol seldom evaluated in the
-mining literature.
+We treat both obstacles as design constraints rather than nuisances. Our starting point is a
+globally distributed, expert-verified mining dataset whose annotation package is small (tens
+of megabytes) and whose imagery is fetched on demand from an open archive, so a
+representative subset trains comfortably on a free-tier GPU. The dataset also carries
+something unusual and useful: a manually checked \emph{scale} attribute---artisanal versus
+industrial---which turns the small-scale, illegal-prone class into a trainable target
+instead of a near-empty sliver of pixels. Because we fetch the raw bands ourselves, we
+recover the near-infrared (NIR) and shortwave-infrared (SWIR) channels and build a
+spectrally grounded prior on them; and because the sites span five continents, we can run a
+geographic generalization test that the mining literature rarely reports.
 
 Concretely, we make the following contributions.
 \begin{enumerate}
@@ -167,34 +169,33 @@ and does not win (CPU latency and memory vs.\ GPU throughput), and a one-click, 
 credential-free pipeline; all code and configurations are released.
 \end{enumerate}
 
-We report single-run results and deliberately frame our claims as \emph{parity plus
-efficiency} rather than accuracy superiority; where component differences are within the
-margin one would expect from run-to-run variation, we say so explicitly. All code, configs
-and the data-preparation pipeline are released for reproducibility.
+Our results come from single runs, and we frame the claims accordingly: \emph{parity plus
+efficiency}, not accuracy superiority. Where two variants differ by less than run-to-run
+noise would explain, we say so instead of dressing it up. All code, configurations and the
+data-preparation pipeline are released so the tables can be reproduced end to end.
 
 % =====================================================================
 \section{Related work}\label{sec:related}
 
 \paragraph{Mining and ASM mapping from satellite imagery.}
-Global inventories of mining land use have been assembled from manual and semi-automatic
+Global inventories of mining land use have been built from manual and semi-automatic
 interpretation of optical imagery \citep{maus2022global} and, more recently, from
-high-resolution satellite mapping \citep{tang2023mining}. Deep learning is increasingly
-applied to mining footprints: \cite{saputra2025multimodal} performed multi-modal semantic
-segmentation of mining land covers across 37 sites worldwide, and
-\cite{balaniuk2020mining} addressed mining and tailings-dam detection at national scale.
-Multi-class monitoring systems such as MineCam combine segmentation and change detection
-over annotated mine components \citep{jablonska2024minecam}. For ASM specifically,
-\cite{gallwey2020asm} trained a multispectral convolutional network to detect small-scale
-mining in Ghana, \cite{ngom2020senegal} mapped artisanal gold mining in Senegal from
-Sentinel-2 data, \cite{couttenier2022asm} mapped ASM over 1.75 million~km$^2$ of West
-Africa with a segmentation network, and \cite{fonseca2024asm} improved ASM detection with
-spectral--textural segmentation of Landsat time series. A recent systematic review of ASM
-mapping \citep{nursamsi2024review} concludes that approaches which succeed locally do not
-yet scale to regional or global monitoring. A consistent theme across these studies is that
-fragmented, low-density mining is hard to recover and easily confused with spectrally
-similar background, motivating methods that inject physical priors and explicitly optimize
-recall; moreover, none of them reports the computational cost of the deployed model, which
-is central here.
+high-resolution satellite mapping \citep{tang2023mining}. Deep learning is now applied
+routinely to mining footprints: Saputra et al.\ \cite{saputra2025multimodal} segmented
+mining land covers across 37 sites worldwide from multi-modal imagery, and Balaniuk et al.\
+\cite{balaniuk2020mining} detected mining and tailings dams at national scale. Multi-class
+systems such as MineCam pair segmentation with change detection over annotated mine
+components \citep{jablonska2024minecam}. Work on ASM specifically is closer to ours: Gallwey
+et al.\ \cite{gallwey2020asm} trained a multispectral network for small-scale mining in
+Ghana, Ngom et al.\ \cite{ngom2020senegal} mapped artisanal gold mining in Senegal from
+Sentinel-2, Couttenier et al.\ \cite{couttenier2022asm} covered 1.75 million~km$^2$ of West
+Africa with a segmentation network, and Fonseca et al.\ \cite{fonseca2024asm} sharpened ASM
+detection using spectral--textural features from Landsat time series. A recent systematic
+review \citep{nursamsi2024review} reaches a sobering conclusion: methods that work locally
+seldom transfer to regional or global monitoring. Two threads run through all of this work.
+Fragmented, low-density mining is hard to recover and easily mistaken for spectrally similar
+background---which motivates physical priors and recall-oriented training---and almost none
+of these studies reports what the model costs to run, a gap we make central here.
 
 \paragraph{Semantic segmentation architectures.}
 Since fully convolutional networks established dense prediction \citep{long2015fcn},
@@ -279,6 +280,7 @@ tiles are capped), which produces a train/test composition shift---training is
 artisanal-heavy, test is industrial-heavy---that we account for when reading the results.}
 \label{tab:data}
 \small
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{l r r r}
 \toprule
  & Artisanal & Industrial & Total \\
@@ -294,6 +296,7 @@ artisanal-heavy, test is industrial-heavy---that we account for when reading the
 \quad Test       & \num{734}  & \num{2359} & \num{3093} \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 \subsection{Imagery retrieval and chipping}\label{sec:prep}
@@ -576,6 +579,7 @@ are released with the code. Efficiency is measured at $256^2$ input.}
 \label{tab:main}
 \small
 \setlength{\tabcolsep}{6pt}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{l cc cc rr}
 \toprule
 Method & mIoU & fg-mIoU & \multicolumn{2}{c}{Recall} & Params & GFLOPs\\
@@ -590,6 +594,7 @@ SPEAR-Net (concat prior)                   & 0.590 & 0.432 & 0.611 & 0.672 & 1.0
 SPEAR-Net (gate prior)                     & 0.572 & 0.409 & \best{0.748} & 0.662 & \best{1.06} & \best{0.60} \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 \subsection{Where detection fails, and what fixes it}\label{sec:results-area}
@@ -627,6 +632,7 @@ on the decisive small-object bin.}
 \label{tab:area}
 \small
 \setlength{\tabcolsep}{6pt}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{l ccc}
 \toprule
 Model & Small & Medium & Large \\
@@ -642,6 +648,7 @@ DeepLabV3+                 & 0.488 & 0.729 & \best{0.865} \\
 U-Net++                    & 0.512 & 0.712 & \best{0.865} \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 \subsection{Component analysis (ablation)}\label{sec:results-ablation}
@@ -684,6 +691,7 @@ in \textbf{bold}.}
 \label{tab:ablation}
 \small
 \setlength{\tabcolsep}{5pt}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{l l cc cc c}
 \toprule
 Configuration & Prior & mIoU & fg-mIoU & \multicolumn{2}{c}{Recall} & small-obj.\ R\\
@@ -697,6 +705,7 @@ Backbone + cross-entropy    & ---            & 0.584 & 0.422 & 0.573 & 0.586 & 0
 \;\;\;RGB prior variant     & gate, 3-band   & \best{0.620} & \best{0.471} & 0.681 & 0.633 & 0.439 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 \subsection{Geographic generalization}\label{sec:results-gen}
@@ -721,6 +730,7 @@ composition from the training continents, so the two mIoU values are not directl
 \label{tab:region}
 \small
 \setlength{\tabcolsep}{6pt}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{l r r r}
 \toprule
 Continent & Artisanal & Industrial & Total \\
@@ -736,6 +746,7 @@ South America & \num{2988} & \num{503}  & \num{3491} \\
 Total         & \num{8025} & \num{7246} & \num{15271} \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 
 \vspace{4pt}
 \footnotesize In-region mIoU \num{0.618} vs.\ held-out (Asia\,+\,Oceania) \num{0.734};
@@ -763,6 +774,7 @@ FLOPs, CPU latency and memory, but not on GPU latency.}
 \label{tab:eff}
 \small
 \setlength{\tabcolsep}{5pt}
+\begin{adjustbox}{max width=\linewidth}
 \begin{tabular}{l rr rr r}
 \toprule
 Model & Params & GFLOPs & GPU ms & CPU ms & VRAM (MB)\\
@@ -773,6 +785,7 @@ DeepLabV3+  & 22.45 & 16.14 & \best{6.5} & 204 & 119 \\
 U-Net++     & 26.09 & 37.27 & 11.6 & 518 & 265 \\
 \bottomrule
 \end{tabular}
+\end{adjustbox}
 \end{table}
 
 \subsection{Qualitative results}\label{sec:results-qual}
@@ -805,15 +818,16 @@ chip and ground-truth mask.}
 \section{Discussion}\label{sec:discussion}
 
 \paragraph{Interpretation.}
-Two findings anchor the paper. First, on the test split a \num{1.06}\,M-parameter model is
-on par on mIoU with baselines that are \num{21}--\num{25}$\times$ larger, so the compactness
-is not bought with accuracy. Second, and more useful operationally, the six-band spectral
-prior improves recovery of the hardest small sites beyond those larger baselines
-(Table~\ref{tab:area})---the regime that the ASM-monitoring literature repeatedly flags as
-the failure point. Because an RGB-only prior does not produce this gain, the effect is
-attributable to the NIR/SWIR bands rather than to added capacity or to the gating mechanism
-alone. The recall-oriented objective is likewise effective: it lifts recall over a plain
-cross-entropy backbone and recovers both mining scales rather than collapsing to background.
+Two findings carry the paper. The first is a non-result that matters: on the test split our
+\num{1.06}\,M-parameter model matches baselines \num{21}--\num{25}$\times$ its size on mIoU,
+so shrinking the network costs nothing in accuracy here. The second is the useful one. The
+six-band spectral prior recovers more of the hardest small sites than those much larger
+baselines (Table~\ref{tab:area})---the exact regime the ASM-monitoring literature keeps
+flagging as the breaking point. An RGB-only prior does not reproduce the gain, which pins it
+to the NIR/SWIR bands rather than to extra capacity or the gating mechanism on its own. The
+recall-oriented objective pulls its weight too: it raises recall over a plain cross-entropy
+backbone and keeps both mining scales alive instead of letting the network collapse to
+background.
 
 \paragraph{On the spectral prior and its integration.}
 Between the two integration modes we do \emph{not} claim the learned gate improves accuracy
@@ -873,23 +887,23 @@ the Tversky $(\alpha,\beta)$ were not swept, so neither is independently isolate
 
 % =====================================================================
 \section{Conclusions}\label{sec:conclusion}
-We introduced SPEAR-Net, a compact, spectrally grounded, recall-oriented network for
-distinguishing artisanal from industrial mining in globally distributed Sentinel-2 imagery.
-On a held-out test split it is on par on mIoU with convolutional baselines that are
-\num{21}--\num{25}$\times$ larger and \num{26}--\num{62}$\times$ more costly, recovers both
-mining scales without background collapse, and gives the highest recall on the
-policy-critical artisanal class. Its main positive result is where it matters most: the
-six-band spectral prior improves recovery of the hardest small ($<32^2$\,px) sites beyond
-the much larger baselines, and an RGB-only prior does not, isolating the value of the
-NIR/SWIR bands. The efficiency advantage is real but selective---parameters, FLOPs, CPU
-latency and memory, not GPU throughput---so the deployment case is edge/free-tier screening.
-We pair these results with an honest account of what remains: small-site recall of
-\num{0.44}--\num{0.61} makes the tool a prioritisation aid rather than an enforcement-grade
-detector, and single-seed training, a small industrial-heavy test split, and a single
-composition-unmatched continent hold-out bound the conclusions. Future work will target the
-small-site regime (multi-scale and multi-temporal inputs), multi-seed and
-leave-each-region-out evaluation with matched composition, and transfer to auxiliary ASM
-domains.
+We presented SPEAR-Net, a compact, spectrally grounded, recall-oriented network for telling
+artisanal mining apart from industrial mining in globally distributed Sentinel-2 imagery. On
+a held-out test split it matches convolutional baselines \num{21}--\num{25}$\times$ larger
+and \num{26}--\num{62}$\times$ more costly on mIoU, recovers both mining scales without
+collapsing to background, and gives the highest recall on the policy-critical artisanal
+class. Its strongest positive result lands where it matters most: the six-band spectral
+prior recovers more of the hardest small ($<32^2$\,px) sites than the much larger baselines,
+and an RGB-only prior does not---which isolates the value of the NIR/SWIR bands. The
+efficiency advantage is real but selective. It shows up in parameters, FLOPs, CPU latency
+and memory, not in GPU throughput, so the deployment case is edge and free-tier screening
+rather than raw speed. We report all of this alongside a frank account of what remains open:
+at \num{0.44}--\num{0.61} small-site recall the tool prioritises inspection rather than
+proving absence, and single-seed training, a small industrial-heavy test split, and a single
+composition-unmatched continent hold-out bound what we can claim. The natural next steps are
+the small-site regime itself (multi-scale and multi-temporal inputs), multi-seed runs and a
+full leave-each-region-out rotation with matched composition, and transfer to other ASM
+settings.
 
 % =====================================================================
 \section*{CRediT authorship contribution statement}
