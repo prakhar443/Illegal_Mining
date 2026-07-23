@@ -119,13 +119,13 @@ Mining reshapes the land surface worldwide, and its most policy-sensitive form--
 and small-scale mining (ASM)---is also the hardest to watch. ASM is often informal or
 outright illegal, it degrades rivers and forests, and it resists governance precisely
 because each site is small, short-lived and scattered across the landscape
-\citep{maus2022global,gallwey2020asm}. Sentinel-2 \citep{drusch2012sentinel2} is well suited
+\citep{maus2022global}. Sentinel-2 \citep{drusch2012sentinel2} is well suited
 to the problem: it delivers free, frequent, multispectral coverage over large areas, and
 semantic segmentation is the natural way to turn that imagery into mining maps. Yet one
 failure keeps recurring, across sensors and network designs. Small, fragmented, low-density
 mining is under-detected, and what is detected is easily confused with bare soil, rock or
 water, so recall stays low and false alarms stay high
-\citep{gallwey2020asm,balaniuk2020mining}. The sites that slip through are exactly the ASM
+\citep{gallwey2020asm}. The sites that slip through are exactly the ASM
 sites regulators most want to find.
 
 Two practical obstacles sit on top of this scientific difficulty. First, the strongest
@@ -206,7 +206,7 @@ context-aggregation designs such as PSPNet \citep{zhao2017pspnet}, atrous
 encoder--decoders such as DeepLabV3+ \citep{chen2018deeplabv3plus} and transformer
 segmenters such as SegFormer \citep{xie2021segformer}. These models are accurate but
 parameter-heavy (tens of millions of weights). Efficiency-oriented backbones---MobileNetV2/V3
-\citep{sandler2018mobilenetv2,howard2019mobilenetv3}, EfficientNet
+\citep{sandler2018mobilenetv2}, \citep{howard2019mobilenetv3}, EfficientNet
 \citep{tan2019efficientnet} and depthwise-separable convolutions
 \citep{chollet2017xception}---enable compact segmenters, but their accuracy--efficiency
 trade-off for fine-grained mining segmentation has not been systematically reported.
@@ -220,7 +220,7 @@ channels, rather than as a \emph{learned}, spatially explicit attention prior in
 modern segmentation network. We revisit these indices as a differentiable, explainable gate.
 
 \paragraph{Imbalanced-segmentation losses.}
-Region-overlap losses (Dice \citep{milletari2016vnet,sudre2017generaliseddice}, Tversky
+Region-overlap losses (Dice \citep{milletari2016vnet}, Tversky
 \citep{salehi2017tversky}), the focal loss \citep{lin2020focal} and boundary-aware losses
 \citep{kervadec2021boundary} were introduced to counter class imbalance and to sharpen
 object boundaries. We combine them into a single recall-oriented objective tailored to the
@@ -356,9 +356,8 @@ and fusing gated skip features.
 We term this a \emph{spectral-index prior} (PISP) because its channels are normalized band ratios
 grounded in the physical reflectance behaviour of surface materials---chlorophyll
 absorption and near-infrared scattering for vegetation, strong SWIR absorption by water,
-and the high visible/SWIR reflectance of exposed soil---rather than being learned from data;
-the same quantities are standard physical proxies in the remote-sensing literature
-\citep{rouse1974ndvi,xu2006mndwi,rikimaru2002bsi}. From the reflectance bands
+and the high visible/SWIR reflectance of exposed soil---rather than being learned from data; each is a standard remote-sensing proxy, cited where
+it is defined below. From the reflectance bands
 $\rho_{\mathrm{B}},\rho_{\mathrm{G}},\rho_{\mathrm{R}},\rho_{\mathrm{NIR}},
 \rho_{\mathrm{SWIR1}},\rho_{\mathrm{SWIR2}}$ we compute four indices that encode the
 dominant visual cues of mining---loss of vegetation, presence of ponds and turbid water,
