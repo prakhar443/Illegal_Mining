@@ -532,6 +532,27 @@ for the baselines), consistent with its recall-oriented design. The baselines re
 edge on the industrial class, which dominates the industrial-heavy test split
 (Table~\ref{tab:data}). Figure~\ref{fig:efficiency} plots accuracy against parameter count.
 
+The pixel-level confusion matrix of the gated model (Figure~\ref{fig:confusion}) makes the
+error structure explicit. Recall on the diagonal is \num{0.926}/\num{0.748}/\num{0.662} for
+background/artisanal/industrial. The dominant artisanal error is omission: \num{24.2}\,\% of
+artisanal pixels are assigned to background, whereas only \num{1.0}\,\% are confused with
+industrial. The scale confusion is therefore small---an artisanal site is rarely mislabelled
+as regulated industrial mining---but the background-omission rate is the operational
+bottleneck and is consistent with the small-site recall deficit analysed in
+Section~\ref{sec:results-area}. From an enforcement standpoint both artisanal off-diagonals
+are false negatives (a missed illegal-prone site), which is why we report recall, not
+accuracy, as the headline metric.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\linewidth]{fig_confusion}
+\caption{Row-normalized pixel confusion matrix of SPEAR-Net (gate) on the test split; each
+cell is the share of true-class pixels assigned to each predicted class (counts below).
+Diagonal entries are per-class recall. The orange outline marks the two artisanal false
+negatives---\num{24.2}\,\% predicted background and \num{1.0}\,\% predicted industrial.}
+\label{fig:confusion}
+\end{figure}
+
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.72\linewidth]{fig_efficiency}
