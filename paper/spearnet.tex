@@ -70,6 +70,11 @@ Small-Site Detection Fails}
             city={Lucknow}, country={India}}
 \cortext[cor1]{Corresponding author.}
 
+\pdfstringdefDisableCommands{%
+  \def\corref#1{}
+  \def\fnref#1{}
+}
+
 \begin{abstract}
 Artisanal and small-scale mining (ASM), frequently unregulated or illegal, is spatially
 fragmented and spectrally similar to bare soil, rock and turbid water, so it is routinely
@@ -174,15 +179,15 @@ and the data-preparation pipeline are released for reproducibility.
 Global inventories of mining land use have been assembled from manual and semi-automatic
 interpretation of optical imagery \citep{maus2022global} and, more recently, from
 high-resolution satellite mapping \citep{tang2023mining}. Deep learning is increasingly
-applied to mining footprints: \citet{saputra2025multimodal} performed multi-modal semantic
+applied to mining footprints: \cite{saputra2025multimodal} performed multi-modal semantic
 segmentation of mining land covers across 37 sites worldwide, and
-\citet{balaniuk2020mining} addressed mining and tailings-dam detection at national scale.
+\cite{balaniuk2020mining} addressed mining and tailings-dam detection at national scale.
 Multi-class monitoring systems such as MineCam combine segmentation and change detection
 over annotated mine components \citep{jablonska2024minecam}. For ASM specifically,
-\citet{gallwey2020asm} trained a multispectral convolutional network to detect small-scale
-mining in Ghana, \citet{ngom2020senegal} mapped artisanal gold mining in Senegal from
-Sentinel-2 data, \citet{couttenier2022asm} mapped ASM over 1.75 million~km$^2$ of West
-Africa with a segmentation network, and \citet{fonseca2024asm} improved ASM detection with
+\cite{gallwey2020asm} trained a multispectral convolutional network to detect small-scale
+mining in Ghana, \cite{ngom2020senegal} mapped artisanal gold mining in Senegal from
+Sentinel-2 data, \cite{couttenier2022asm} mapped ASM over 1.75 million~km$^2$ of West
+Africa with a segmentation network, and \cite{fonseca2024asm} improved ASM detection with
 spectral--textural segmentation of Landsat time series. A recent systematic review of ASM
 mapping \citep{nursamsi2024review} concludes that approaches which succeed locally do not
 yet scale to regional or global monitoring. A consistent theme across these studies is that
@@ -240,7 +245,7 @@ orthogonal and promising direction.
 \subsection{Dataset}\label{sec:data}
 We use a globally distributed, machine-learning-ready mining dataset
 \citep{jasansky2024dataset} that reconciles and manually re-validates polygons derived from
-\citet{maus2022global} and \citet{tang2023mining}. The annotation package is compact and
+\cite{maus2022global} and \cite{tang2023mining}. The annotation package is compact and
 provides, per site, the exact Sentinel-2 scene reference, mask polygons, a train/validation/
 test split, and two metadata attributes: a mine-type label (surface, placer, underground,
 brine/evaporation) and a \emph{scale} label---\emph{artisanal} versus \emph{industrial}---
@@ -474,7 +479,7 @@ trained with AdamW \citep{loshchilov2019adamw} at a base learning rate of
 $3\times10^{-4}$, weight decay $10^{-4}$, a cosine schedule \citep{loshchilov2017sgdr} with a
 three-epoch linear warm-up, mixed-precision, gradient clipping at norm $1$, batch size
 $10$, and $40$ epochs. Implementation uses PyTorch \citep{paszke2019pytorch}; convolutional
-baselines use the implementations of \citet{iakubovskii2019smp} with ResNet-34 encoders
+baselines use the implementations of \cite{iakubovskii2019smp} with ResNet-34 encoders
 \citep{he2016resnet} and the same six-band input, loss and schedule for a controlled
 comparison. Training used a single NVIDIA A100
 GPU; the model also fits and trains within the memory of a free-tier 16\,GB accelerator.
@@ -545,7 +550,7 @@ accuracy, as the headline metric.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.62\linewidth]{fig_confusion}
+\includegraphics[width=1\linewidth]{fig_confusion}
 \caption{Row-normalized pixel confusion matrix of SPEAR-Net (gate) on the test split; each
 cell is the share of true-class pixels assigned to each predicted class (counts below).
 Diagonal entries are per-class recall. The orange outline marks the two artisanal false
@@ -555,7 +560,7 @@ negatives---\num{24.2}\,\% predicted background and \num{1.0}\,\% predicted indu
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.72\linewidth]{fig_efficiency}
+\includegraphics[width=1\linewidth]{fig_efficiency}
 \caption{Accuracy versus parameter count (logarithmic axis). The compact SPEAR-Net variants
 sit more than an order of magnitude to the left of the baselines (U-Net, DeepLabV3+,
 U-Net++) at comparable accuracy.}
@@ -606,7 +611,7 @@ enforcement-grade detection.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.62\linewidth]{fig_area_recall}
+\includegraphics[width=1\linewidth]{fig_area_recall}
 \caption{Area-stratified component recall (Eq.~\ref{eq:areastrat}). Recall rises with
 component area for every model; the six-band spectral prior improves recovery of the hardest
 small ($<32^2$\,px) sites beyond the much larger baselines.}
@@ -665,7 +670,7 @@ Figure~\ref{fig:ablbars} summarizes the mining-class IoUs across variants.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.78\linewidth]{fig_ablation}
+\includegraphics[width=1\linewidth]{fig_ablation}
 \caption{Component analysis of the SPEAR-Net variants (A1--A5): the recall-weighted objective
 and the six-band spectral prior are the components that move the mining classes.}
 \label{fig:ablbars}
@@ -749,19 +754,6 @@ is constrained: CPU latency is \num{5}--\num{12}$\times$ lower (\SI{43}{\milli\s
 $10\,980^2$-pixel Sentinel-2 tile ($\approx$\num{1764} chips) is screened in well under a
 minute on a single GPU by any of the models, so the practical differentiator for
 large-area, credential-free monitoring is the CPU/memory footprint rather than raw speed.
-Figure~\ref{fig:latency} plots accuracy against latency on both processors and makes the
-split explicit: on the GPU SPEAR-Net sits among the baselines, whereas on the CPU it is
-displaced far to the low-latency side at comparable mIoU.
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{fig_latency}
-\caption{Accuracy versus per-chip inference latency on a GPU (left) and a single-threaded
-CPU (right). SPEAR-Net is not faster than the baselines on the GPU, but is
-\num{5}--\num{12}$\times$ faster on the CPU at comparable mIoU---the regime relevant to
-credential-free, commodity-hardware deployment.}
-\label{fig:latency}
-\end{figure}
 
 \begin{table}[t]
 \centering
