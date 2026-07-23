@@ -607,7 +607,12 @@ variance, so we treat them as comparable and select the gate for its artisanal-r
 advantage. That the prior is actually used is evident from the learned per-scale gate
 strengths of the trained model, $\alpha_s = \{1.38, 1.42, 1.17, 1.17\}$ (from coarse to
 fine): all are positive and near unity, so the attention map roughly doubles the modulated
-skip features where the spectral evidence is strong.
+skip features where the spectral evidence is strong. As an independent check of what the
+prior encodes, we use the gate's attention map directly as a pixel-wise foreground detector:
+against the ground-truth mask on the test split it attains an ROC-AUC of \num{0.638}
+($n=\num{3.2}$\,M pixels)---well above chance ($0.5$) but far from a standalone segmenter,
+consistent with its intended role as a soft, physically-grounded prior that the
+recall-weighted decoder refines rather than a segmentation output in itself.
 Figure~\ref{fig:ablbars} summarizes the mining-class IoUs across variants.
 
 \begin{figure}[t]
@@ -688,10 +693,10 @@ see text for why these are not comparable.
 Table~\ref{tab:eff} profiles inference cost. SPEAR-Net uses \num{21}--\num{25}$\times$ fewer
 parameters and \num{26}--\num{62}$\times$ fewer FLOPs than the baselines. These savings do
 \emph{not} translate into lower GPU latency---at \num{1.06}\,M parameters the model does not
-saturate the accelerator, so its per-chip GPU time (\SI{8.3}{\milli\second}) is close to,
+saturate the accelerator, so its per-chip GPU time (\SI{7.9}{\milli\second}) is close to,
 and sometimes above, the baselines. The advantage instead appears exactly where deployment
-is constrained: CPU latency is roughly \num{5}$\times$ lower (\SI{53}{\milli\second} vs.\
-\SI{233}{}--\SI{565}{\milli\second}) and peak GPU memory is \num{5}--\num{11}$\times$ lower
+is constrained: CPU latency is \num{5}--\num{12}$\times$ lower (\SI{43}{\milli\second} vs.\
+\SI{204}{}--\SI{518}{\milli\second}) and peak GPU memory is \num{5}--\num{11}$\times$ lower
 (\SI{23}{\mega\byte} vs.\ \SI{119}{}--\SI{265}{\mega\byte}). At the measured throughput one
 $10\,980^2$-pixel Sentinel-2 tile ($\approx$\num{1764} chips) is screened in well under a
 minute on a single GPU by any of the models, so the practical differentiator for
@@ -709,10 +714,10 @@ FLOPs, CPU latency and memory, but not on GPU latency.}
 \toprule
 Model & Params & GFLOPs & GPU ms & CPU ms & VRAM (MB)\\
 \midrule
-SPEAR-Net   & \best{1.06}  & \best{0.60}  & 8.3 & \best{53}  & \best{23} \\
-U-Net       & 24.45 & 16.06 & 7.0 & 263 & 136 \\
-DeepLabV3+  & 22.45 & 16.14 & \best{6.7} & 233 & 119 \\
-U-Net++     & 26.09 & 37.27 & 11.2 & 565 & 265 \\
+SPEAR-Net   & \best{1.06}  & \best{0.60}  & 7.9 & \best{43}  & \best{23} \\
+U-Net       & 24.45 & 16.06 & 7.3 & 240 & 136 \\
+DeepLabV3+  & 22.45 & 16.14 & \best{6.5} & 204 & 119 \\
+U-Net++     & 26.09 & 37.27 & 11.6 & 518 & 265 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -769,7 +774,7 @@ objective---rather than attributing gains to a component the data does not suppo
 The compactness advantage is real but selective (Table~\ref{tab:eff}). On a GPU the model is
 \emph{not} faster than the baselines, because \num{1.06}\,M parameters do not saturate the
 accelerator; its benefits are \num{21}--\num{25}$\times$ fewer parameters,
-\num{26}--\num{62}$\times$ fewer FLOPs, $\sim$\num{5}$\times$ lower CPU latency and
+\num{26}--\num{62}$\times$ fewer FLOPs, \num{5}--\num{12}$\times$ lower CPU latency and
 \num{5}--\num{11}$\times$ lower peak memory. The relevant deployment claim is therefore edge-
 and CPU-oriented---running within a free-tier or commodity machine's memory and without a
 GPU---not raw throughput.
