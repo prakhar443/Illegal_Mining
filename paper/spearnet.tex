@@ -780,16 +780,19 @@ visualizes the four indices for a sample scene.
 \centering
 \includegraphics[width=\linewidth]{qualitative}
 \caption{Qualitative predictions and the interpretable PISP attention map on held-out test
-chips. Rows show representative correct detections and characteristic failures (small,
-fragmented sites and artisanal/industrial confusions).}
+chips. The top rows are successful detections and the bottom rows characteristic failures
+(small, fragmented sites and artisanal/industrial confusions); each row is labelled
+success/failure with its foreground IoU, and the RGB panel carries a \SI{1}{\kilo\metre}
+scale bar (Sentinel-2, \SI{10}{\metre}/pixel).}
 \label{fig:qual}
 \end{figure}
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\linewidth]{priors}
-\caption{The four spectral indices computed on the fly
-(Eqs.~\ref{eq:ndvi}--\ref{eq:bsi}).}
+\caption{The four spectral indices computed on the fly (Eqs.~\ref{eq:ndvi}--\ref{eq:bsi}),
+each shown with its own colourbar over a symmetric $[-v,\,v]$ range, alongside the S2 RGB
+chip and ground-truth mask.}
 \label{fig:priors}
 \end{figure}
 
