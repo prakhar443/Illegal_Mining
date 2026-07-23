@@ -207,6 +207,20 @@ Region-overlap losses (Dice \citep{milletari2016vnet,sudre2017generaliseddice}, 
 object boundaries. We combine them into a single recall-oriented objective tailored to the
 small, fragmented artisanal class.
 
+\paragraph{Geospatial foundation models.}
+A parallel line of work pre-trains large transformer backbones on massive unlabelled
+satellite archives---masked-autoencoder models such as SatMAE \citep{cong2022satmae},
+geospatial foundation models (e.g.\ Prithvi, Clay), and the promptable Segment Anything Model
+\citep{kirillov2023sam} adapted to Earth observation---and fine-tunes them for downstream
+tasks. These models can be
+powerful when abundant compute and labels are available, but they carry hundreds of millions
+of parameters and are ill-suited to the free-tier and CPU-only budgets that constrain much
+operational and academic ASM monitoring. Our aim is complementary: a compact, transparent
+model whose inductive bias comes from explicit spectral indices rather than from large-scale
+pre-training, so that it trains and runs within commodity resources while remaining
+interpretable. Distilling or adapting a foundation model under the same budget is an
+orthogonal and promising direction.
+
 % =====================================================================
 \section{Materials and methods}\label{sec:methods}
 
@@ -339,8 +353,8 @@ and exposed bare ground/tailings:
 \end{align}
 Stacking the four indices gives a tensor
 $\mathbf{P}\in\mathbb{R}^{4\times H\times W}$ (NDVI is vegetation
-\citep{rouse1974ndvi}, MNDWI water \citep{xu2006mndwi}, NDTI turbidity, BSI bare soil
-\citep{rikimaru2002bsi}). A small convolutional gate maps $\mathbf{P}$ to a single-channel
+\citep{rouse1974ndvi}, MNDWI water \citep{xu2006mndwi}, NDTI turbidity
+\citep{lacaux2007ndti}, BSI bare soil \citep{rikimaru2002bsi}). A small convolutional gate maps $\mathbf{P}$ to a single-channel
 spatial attention map,
 \begin{equation}
 \mathbf{A} = \sigma\!\big(\, g(\mathbf{P}) \,\big),\qquad
