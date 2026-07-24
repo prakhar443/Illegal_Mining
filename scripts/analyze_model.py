@@ -36,7 +36,9 @@ def main():
     ap.add_argument("--chips-root", default=None,
                     help="chips dir (overrides the config; manifest is <chips-root>/manifest.csv)")
     ap.add_argument("--manifest", default=None, help="explicit manifest.csv path")
-    ap.add_argument("--max-batches", type=int, default=64, help="cap for the AUC pass")
+    ap.add_argument("--max-batches", type=int, default=64,
+                    help="batches to sample for the AUC pass; <=0 uses the full split "
+                         "(avoids the regional clustering of the first-N-in-order batches)")
     ap.add_argument("--out", default="analysis.json")
     args = ap.parse_args()
 
@@ -75,7 +77,7 @@ def main():
     scores, labels = [], []
     with torch.no_grad():
         for bi, batch in enumerate(loaders[args.split]):
-            if bi >= args.max_batches:
+            if args.max_batches > 0 and bi >= args.max_batches:
                 break
             x = batch["image"].to(device)
             res = model(x)

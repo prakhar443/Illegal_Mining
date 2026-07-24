@@ -94,7 +94,7 @@ def main():
         json.dump(out, f, indent=2, default=str)
     print(f"\nSaved -> {args.out}")
     print("Use A2 for Table 1 (scale), A3 for the mine-type block, A5 for chips-per-split,")
-    print("A6 to rewrite Section 4.4, and A4 to fix every count in paper/README.")
+    print("A6 for the region/scale composition, and A4 to reconcile the site/tile/scene counts.")
 
 
 if __name__ == "__main__":

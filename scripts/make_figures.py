@@ -17,7 +17,7 @@ Usage (Colab or local):
       --results /path/comparison_full_scale3.json \
       --gpkg mine_data/mining_area_data.gpkg \
       --area 0.441 0.796 0.922 --area-counts 68 49 51 \
-      --out paper/figures
+      --out figures
 """
 from __future__ import annotations
 
@@ -193,7 +193,7 @@ def main():
     ap.add_argument("--area", type=float, nargs=3, default=[0.441, 0.796, 0.922],
                     help="area-stratified recall: small medium large")
     ap.add_argument("--area-counts", type=int, nargs=3, default=[68, 49, 51])
-    ap.add_argument("--out", default="paper/figures")
+    ap.add_argument("--out", default="figures")
     args = ap.parse_args()
 
     _style()

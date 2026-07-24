@@ -4,9 +4,9 @@
 These figures are deterministic functions of the numbers already reported in the
 manuscript tables (Table 2/3/4/6 and the gate confusion matrix), so they can be
 rebuilt exactly without a GPU, a checkpoint or the dataset. Outputs vector PDF +
-300-dpi PNG into --out (default: paper/figures).
+300-dpi PNG into --out (default: figures).
 
-    python scripts/paper_figures.py --out paper/figures
+    python scripts/paper_figures.py --out figures
 
 Produces: fig_area_recall, fig_efficiency, fig_ablation, fig_latency, fig_confusion.
 """
