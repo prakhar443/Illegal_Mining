@@ -31,7 +31,7 @@ ROWS = [
  ("DeepLabV3+",          0.562,0.395,0.662,0.644,0.488,0.729,0.865,22.45,16.14,6.5,203.8,"base"),
  ("U-Net++",             0.604,0.452,0.647,0.678,0.512,0.712,0.865,26.09,37.27,11.6,518.1,"base"),
 ]
-N_BINS = {"small": 82, "medium": 59, "large": 37}   # ground-truth component counts
+N_BINS = {"small": 41, "medium": 59, "large": 37}   # ground-truth component counts
 CM = np.array([[165081346, 4345110, 8922339],       # gate confusion (rows=GT, cols=pred)
                [1517953, 4687826, 61924],
                [4264938, 1855928, 11965484]], float)
