@@ -549,8 +549,8 @@ Table~\ref{tab:main} gives test-split accuracy. On mIoU the compact SPEAR-Net va
 (\num{0.572}--\num{0.590}) and the RGB variant (\num{0.620}) sit interleaved with the
 \num{21}--\num{26}\,M-parameter baselines (\num{0.562}--\num{0.604}); no consistent gap
 separates the two groups, so an order-of-magnitude cut in size buys no loss of accuracy
-here. Foreground mIoU, with background excluded, tells the same story (\num{0.41}--\num{0.47}
-for every model). On the artisanal class---the one that matters for policy---the gated model
+here. Foreground mIoU, with background excluded, tells the same story (\num{0.395}--\num{0.471}
+across models). On the artisanal class---the one that matters for policy---the gated model
 has the best recall of any model (\num{0.748} against \num{0.647}--\num{0.662} for the
 baselines), which is exactly what its recall-oriented design is for. The baselines keep a
 slight edge on the industrial class, unsurprising given how heavily it dominates the test
@@ -900,7 +900,7 @@ concatenated form---recovers more components than those much larger baselines
 (Table~\ref{tab:area}), the exact regime the ASM-monitoring literature keeps flagging as the
 breaking point. We are careful not to overstate it: these are single-seed results, the
 per-bin \num{95}\,\% intervals overlap, and only the concatenated variant's four-component
-lead is robust (the gated variant's one-component lead is within noise); pooled over all
+lead is consistent across bins (the gated variant's one-component lead is within noise); pooled over all
 \num{137} components the concat/gate ordering over the baselines nonetheless holds
 (\num{0.730}/\num{0.701} vs.\ $\leq$\num{0.693}). An RGB-only prior does not reproduce the
 gain, which pins it to the NIR/SWIR bands rather than to extra capacity or the gating
