@@ -14,11 +14,11 @@
 
 | Contribution | What it is |
 |---|---|
-| **PISP gate** (Physically-Informed Spectral Prior) | NDVI (vegetation loss), MNDWI (mining ponds), NDTI (turbidity), BSI (bare soil/tailings) computed on the fly from Sentinel-2 bands and fused as a *learned spatial-attention prior* that steers the network toward physically-plausible mining and suppresses bare-rock/water false alarms. Explainable. |
+| **PISP gate** (Spectral-Index Prior) | NDVI (vegetation loss), MNDWI (mining ponds), NDTI (turbidity), BSI (bare soil/tailings) computed on the fly from Sentinel-2 bands and fused as a *learned spatial-attention prior* that steers the network toward plausible mining and suppresses bare-rock/water false alarms. Explainable. |
 | **Recall-weighted boundary stream** | An edge head with deep supervision + a compound loss (present-class Dice + Tversky β>α + Focal + boundary + edge BCE) with inverse-frequency class weights, built for small, fragmented artisanal sites — and engineered to **not collapse to background** under heavy imbalance. |
-| **Lightweight backbone** | A ≤ ~6 M-parameter MobileNetV3-Small / EfficientNet-lite0 encoder (stem adapted 3→6 bands), with explicit params / GFLOPs / T4-latency reporting for edge & free-tier deployment. |
+| **Lightweight backbone** | A 1.06 M-parameter MobileNetV3-Small encoder (stem adapted 3→6 bands), with explicit params / GFLOPs / T4-latency reporting for edge & free-tier deployment. |
 | **Artisanal-vs-industrial head** | A small-scale (illegal-prone) vs industrial (regulated) output of direct policy value, on **verified** labels. |
-| **Cross-region generalization** | A geographic leave-one-region-out protocol (train on some continents, test on held-out ones) enabled by the global dataset. |
+| **Cross-region generalization** | A geographic held-out continent protocol (train on some continents, test on withheld ones) enabled by the global dataset. |
 
 Every module is **independently ablatable**.
 
@@ -27,7 +27,7 @@ Every module is **independently ablatable**.
 ## 📦 Dataset — global mine-segmentation
 
 `SimonJasansky/mine-segmentation` (Zenodo [10.5281/zenodo.14195737](https://doi.org/10.5281/zenodo.14195737),
-Maastricht University). 1,210 mining sites worldwide (1,514 annotated tiles; confirm with `scripts/diagnostics.py`); masks from Maus et al. (2022) + Tang
+Maastricht University). 1,210 mining sites worldwide — 1,514 annotated tiles, 1,207 with train/val/test splits, from 1,128 Sentinel-2 scenes; masks from Maus et al. (2022) + Tang
 et al. (2023), **manually re-validated** (accuracy 99.78, precision 99.22, recall 95.71).
 License CC-BY-SA-4.0.
 
@@ -58,8 +58,9 @@ The pipeline reads chips via `chips/manifest.csv`, which carries each chip's ver
 | `binary` | `{background, mining}` — robust detector |
 | `scale3` | `{background, artisanal, industrial}` — the headline (mining pixels relabelled by the chip's verified scale) |
 
-> Legacy v3 LAMES sources (`source: local` Drive zips, or `source: hf`) are still supported
-> for the RGB-only ablation; see git history / configs `spearnet_*.yaml`.
+> Legacy v3 data sources (`source: local` Drive zips, or `source: hf`) remain in the code but
+> are **not** used for any result in the paper. The RGB-only ablation runs on the same 6-band
+> chips restricted to the visible bands, under the same splits, seed and schedule.
 
 ---
 
@@ -67,12 +68,12 @@ The pipeline reads chips via `chips/manifest.csv`, which carries each chip's ver
 
 ### Google Colab (recommended)
 
-Open [`notebooks/SPEARNet_LAMES_Colab.ipynb`](notebooks/SPEARNet_LAMES_Colab.ipynb)
+Open [`notebooks/SPEARNet_Colab.ipynb`](notebooks/SPEARNet_Colab.ipynb)
 in Colab, select a **T4 GPU** runtime, and *Run all*. The notebook clones this repo,
 installs dependencies, streams a subset of 6-band Sentinel-2 from Planetary Computer,
 trains SPEAR-Net, and renders metrics + PISP explainability overlays.
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/prakhar443/Illegal_Mining/blob/spearnet-colab/notebooks/SPEARNet_LAMES_Colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/prakhar443/Illegal_Mining/blob/main/notebooks/SPEARNet_Colab.ipynb)
 
 > **Working in a team?** See [`docs/TEAM_SETUP.md`](docs/TEAM_SETUP.md) — interns fork the
 > repo (your original stays protected, changes only via PR review) and each keeps the
@@ -115,7 +116,7 @@ Input patch (S2: B,G,R,NIR,SWIR1,SWIR2 — 256x256x6)
         │        1x1 + depthwise 3x3 -> sigmoid = attention map (per decoder scale)
         │
         ▼
-Lightweight Encoder (MobileNetV3-S / EfficientNet-lite0, stem 3→6 bands)  s2..s5
+Lightweight Encoder (MobileNetV3-Small, stem 3→6 bands)  s2..s5
         │
         ▼   gated skips:  F = F_skip * (1 + alpha * attn)
 Depthwise-Separable U-Net / FPN Decoder  (progressive upsample + fuse)
@@ -131,7 +132,7 @@ See [`src/spearnet/models/spearnet.py`](src/spearnet/models/spearnet.py).
 
 ---
 
-## 🔬 Physically-Informed Spectral Prior (PISP)
+## 🔬 Spectral-Index Prior (PISP)
 
 Computed on the fly from the Sentinel-2 bands (`prior_type: pisp`):
 
@@ -164,7 +165,7 @@ U-Net, DeepLabV3+, U-Net++. Selectable with `model.name`.
 5. RGB-only prior (`prior_type: csp`, 3 bands) vs full spectral PISP (6 bands).
 6. Tasks: `binary` / `scale3` (artisanal-vs-industrial).
 
-**Generalization (headline)**: geographic **leave-one-region-out** — set
+**Generalization (headline)**: geographic **held-out continent** experiment — set
 `data.holdout_regions` (e.g. `[Asia, Oceania]`); training excludes them and an `ood` split
 is exposed for out-of-region testing. Report in-region vs out-of-region mIoU drop.
 
@@ -179,7 +180,7 @@ is exposed for out-of-region testing. Report in-region vs out-of-region mIoU dro
 .
 ├── configs/                  # YAML experiment configs (one per task/ablation)
 ├── notebooks/
-│   └── SPEARNet_LAMES_Colab.ipynb
+│   └── SPEARNet_Colab.ipynb
 ├── scripts/
 │   ├── train.py
 │   ├── evaluate.py
@@ -202,10 +203,13 @@ is exposed for out-of-region testing. Report in-region vs out-of-region mIoU dro
 If you use this code, please cite the dataset and (once published) the SPEAR-Net paper.
 
 ```bibtex
-@misc{spearnet,
-  title  = {Distinguishing Artisanal from Industrial Mining in Sentinel-2 Imagery:
-            A Spectral-Prior, Recall-Oriented Segmentation Approach},
-  year   = {2026}
+@misc{spearnet2026,
+  title  = {SPEAR-Net: Spectral-Prior-Guided, Recall-Oriented Segmentation of Artisanal
+            and Industrial Mining in Sentinel-2 Imagery},
+  author = {Awasthi, Bhavya Yajush and Mishra, Prakhar and Tanuja and Mishra, Akshita
+            and Mishra, Pranav},
+  year   = {2026},
+  note   = {Manuscript under review; a Zenodo DOI will be added on acceptance}
 }
 ```
 
