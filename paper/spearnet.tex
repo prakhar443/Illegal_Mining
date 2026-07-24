@@ -91,14 +91,13 @@ label, the two six-band variants reach \num{0.57}--\num{0.59} mIoU, on par with 
 DeepLabV3+ and U-Net++ (\num{0.56}--\num{0.60}) at \num{21}--\num{25}$\times$ fewer parameters
 and \num{26}--\num{62}$\times$ fewer operations. The more telling result concerns object
 size: on small ($<32^2$\,px) components the concatenated prior recovers \num{0.61}, ahead of
-every baseline (\num{0.42}--\num{0.51}) and an RGB-only prior (\num{0.44}), which points to
-the near-infrared/shortwave-infrared bands---though the single-seed \num{95}\,\% intervals
-overlap across models, so we read the gated variant's \num{0.54} cautiously. The gated model
-gives the highest artisanal recall (\num{0.75}) but at low precision ($\approx$\num{0.43}), a
-screening rather than an enforcement operating point. The efficiency gains fall on CPU
-latency (\num{4.7}--\num{12}$\times$ lower) and peak memory (\num{5}--\num{11}$\times$
-lower), not GPU throughput. SPEAR-Net is best read as an accurate, frugal screening tool for
-large-area artisanal-mining monitoring, with an honest account of the small-site error and
+every baseline (\num{0.42}--\num{0.51}) and an RGB-only prior (\num{0.44}), pointing to the
+near-infrared/shortwave-infrared bands, though single-seed intervals overlap. The gated model
+gives the highest artisanal recall (\num{0.75}) at low precision ($\approx$\num{0.43}), a
+screening rather than an enforcement operating point. Efficiency gains fall on CPU latency
+(\num{4.7}--\num{12}$\times$ lower) and peak memory (\num{5}--\num{11}$\times$ lower), not GPU
+throughput. We position SPEAR-Net as an accurate, frugal screening tool for large-area
+artisanal-mining monitoring, with an honest account of the small-site error and
 precision--recall trade-off that remain.
 \end{abstract}
 
@@ -597,29 +596,29 @@ U-Net++) at comparable accuracy.}
 
 \begin{table}[t]
 \centering
-\caption{Three-class segmentation on the held-out \emph{test} split (single run). mIoU and
-foreground mIoU (background excluded), with per-class precision (P), recall (R) and F1 for
-the two mining classes; best value per column in \textbf{bold}. Precision quantifies the
-false-alarm burden that conditions the screening use case (Section~\ref{sec:discussion});
-efficiency (params, GFLOPs, latency) is reported separately in Table~\ref{tab:eff}. The two
-compact SPEAR-Net variants each use \num{1.06}\,M parameters, the baselines
-\num{22}--\num{26}\,M.}
+\caption{Three-class segmentation on the held-out \emph{test} split (single run). mIoU with
+per-class IoU, precision (P), recall (R) and F1 for the two mining classes; best value per
+column in \textbf{bold}. Foreground mIoU (background excluded) equals the mean of the two
+mining-class IoUs shown here. Precision quantifies the false-alarm burden that conditions the
+screening use case (Section~\ref{sec:discussion}); efficiency (params, GFLOPs, latency) is in
+Table~\ref{tab:eff}. The two compact SPEAR-Net variants each use \num{1.06}\,M parameters, the
+baselines \num{22}--\num{26}\,M.}
 \label{tab:main}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{3.5pt}
 \begin{adjustbox}{max width=\linewidth}
-\begin{tabular}{l cc ccc ccc}
+\begin{tabular}{l c cccc cccc}
 \toprule
-Method & mIoU & fg-mIoU & \multicolumn{3}{c}{Artisanal} & \multicolumn{3}{c}{Industrial}\\
-\cmidrule(lr){4-6}\cmidrule(lr){7-9}
- & & & P & R & F1 & P & R & F1 \\
+Method & mIoU & \multicolumn{4}{c}{Artisanal} & \multicolumn{4}{c}{Industrial}\\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}
+ & & IoU & P & R & F1 & IoU & P & R & F1 \\
 \midrule
-U-Net \citep{ronneberger2015unet}          & 0.587 & 0.432 & 0.491 & 0.660 & 0.563 & 0.579 & \best{0.718} & \best{0.641} \\
-U-Net++ \citep{zhou2019unetpp}             & \best{0.604} & \best{0.452} & \best{0.569} & 0.647 & \best{0.605} & \best{0.605} & 0.678 & 0.640 \\
-DeepLabV3+ \citep{chen2018deeplabv3plus}   & 0.562 & 0.395 & 0.413 & 0.662 & 0.509 & 0.598 & 0.644 & 0.620 \\
+U-Net \citep{ronneberger2015unet}          & 0.587 & 0.392 & 0.491 & 0.660 & 0.563 & \best{0.472} & 0.579 & \best{0.718} & \best{0.641} \\
+U-Net++ \citep{zhou2019unetpp}             & \best{0.604} & \best{0.434} & \best{0.569} & 0.647 & \best{0.605} & 0.470 & \best{0.605} & 0.678 & 0.640 \\
+DeepLabV3+ \citep{chen2018deeplabv3plus}   & 0.562 & 0.341 & 0.413 & 0.662 & 0.509 & 0.449 & 0.598 & 0.644 & 0.620 \\
 \midrule
-SPEAR-Net (concat prior)                   & 0.590 & 0.432 & 0.562 & 0.611 & 0.586 & 0.577 & 0.672 & 0.621 \\
-SPEAR-Net (gate prior)                     & 0.572 & 0.409 & 0.431 & \best{0.748} & 0.546 & 0.571 & 0.662 & 0.613 \\
+SPEAR-Net (concat prior)                   & 0.590 & 0.414 & 0.562 & 0.611 & 0.586 & 0.450 & 0.577 & 0.672 & 0.621 \\
+SPEAR-Net (gate prior)                     & 0.572 & 0.376 & 0.431 & \best{0.748} & 0.546 & 0.442 & 0.571 & 0.662 & 0.613 \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -639,14 +638,21 @@ recovers \num{25}/\num{41} small components (\num{0.610}) and the gated prior \n
 (\num{0.537}), against the best baseline's \num{21}/\num{41} (\num{0.512}), while the RGB-only
 prior recovers only \num{18}/\num{41} (\num{0.439})---placing the effect on the NIR/SWIR
 bands. These margins must be read with the sample size in mind. The concatenated prior's
-lead---four components over the best baseline---is modest but consistent, while the gated prior's
-one-component lead is not, and the \num{95}\,\% Wilson intervals in Figure~\ref{fig:areabars}
-overlap across the whole group; we therefore treat the concatenated result as solid and the
-gated result as suggestive, pending multi-seed confirmation. Even so, a \num{1.06}\,M-parameter
-spectral model recovering more small sites than networks with \num{20}--\num{25}$\times$ its
-parameters is the operationally relevant point. And we read the absolute value honestly: at
-\num{0.44}--\num{0.61} small-object recall this is a \emph{screening and prioritisation} aid,
-not enforcement-grade detection.
+lead---four components over the best baseline---is the largest and most consistent margin we
+observe, but on \num{41} components it is not statistically distinguishable from the best
+baseline without a paired test (unpaired \num{25}/\num{41} vs.\ \num{21}/\num{41} gives a
+Fisher exact $p\approx0.5$); the gated prior's one-component lead certainly is not, and the
+\num{95}\,\% Wilson intervals in Figure~\ref{fig:areabars} overlap across the whole group.
+Pooled over all three bins ($n=\num{137}$ components), where the estimate is more stable, the
+ordering holds and widens: concat \num{100}/\num{137} (\num{0.730}), gate \num{96}/\num{137}
+(\num{0.701}), then the best baselines U-Net++ and DeepLabV3+ at \num{95}/\num{137}
+(\num{0.693}), U-Net \num{92}/\num{137} (\num{0.671}), and the RGB variant \num{89}/\num{137}
+(\num{0.650}). A paired McNemar test on these per-component detection vectors would sharpen
+the comparison further and is the natural next step. Even at face value, a
+\num{1.06}\,M-parameter spectral model recovering more small sites than networks with
+\num{20}--\num{25}$\times$ its parameters is the operationally relevant point, and we read the
+absolute value honestly: at \num{0.44}--\num{0.61} small-object recall this is a
+\emph{screening and prioritisation} aid, not enforcement-grade detection.
 
 \begin{figure}[t]
 \centering
@@ -700,14 +706,18 @@ still, most sharply in the concatenated form (\num{0.610}); the gated form gives
 that back in exchange for the highest artisanal recall (\num{0.748}). The RGB variant goes
 the other way and \emph{loses} small-object recall (\num{0.439}), which confirms the gain
 rides on the NIR/SWIR bands rather than on the gating mechanism itself. That same RGB variant
-nonetheless posts the highest overall mIoU (\num{0.620}) and foreground mIoU (\num{0.471}) in
-the study, and we address that head-on rather than bury it. We read it as a composition
-effect, not as colour beating spectra: the test split is industrial-heavy
-(Table~\ref{tab:data}) and industrial sites are large and contiguous, so a variant that
-trades small-site recall for cleaner background and large-object delineation is rewarded by an
-area-weighted aggregate like mIoU. The six-band priors make the opposite trade---more small
-sites at slightly lower mIoU---which is exactly why we treat small-object recall
-(Table~\ref{tab:area}), not mIoU, as the operationally decisive measure. The comparison is
+nonetheless posts the best overall mIoU (\num{0.620}) and, in Table~\ref{tab:ablation}, the
+highest per-class IoU and F1 of any model for both mining classes, so it is not merely winning
+on background---and we address that head-on rather than bury it. The honest reading is about
+precision, not object size. The RGB variant delineates what it does find more precisely (top
+artisanal and industrial IoU and F1) and has the cleanest background (background IoU
+\num{0.918} vs.\ \num{0.896}--\num{0.908} for the rest, recoverable as
+$3\,\mathrm{mIoU}-2\,\mathrm{fg\text{-}mIoU}$), but it \emph{detects} fewer sites: it is the
+worst of all models on medium components (\num{40}/\num{59}) and only tied on large. The
+six-band prior makes the opposite trade---more detections, especially of the small sites, at
+lower per-pixel precision. For a screening tool, detection is the operationally decisive
+property, which is exactly why we treat small-object recall (Table~\ref{tab:area}), not mIoU
+or F1, as the headline measure. The comparison is
 controlled: the RGB variant runs on the same six-band chips restricted to the visible bands,
 under the same splits, seed and schedule (the legacy RGB-only data path noted in the
 repository is not used for this row). It is also worth naming row A1 (MobileNetV3-Small
@@ -717,14 +727,19 @@ backbone, plain decoder, cross-entropy) for what it is---a compact baseline at t
 regime, a cleaner controlled comparison than anything against the \num{22}--\num{26}\,M
 baselines. The two integration modes are within \num{0.02} mIoU of each other (\num{0.590} concat vs.\ \num{0.572} gate) and
 we did not measure run-to-run variance, so we treat them as comparable and pick the gate for
-its artisanal-recall edge. The prior is demonstrably used: the trained gate strengths
+its artisanal-recall edge---accepting that it also has the \emph{lowest} artisanal F1 of the
+SPEAR-Net variants (\num{0.546} vs.\ \num{0.586}/\num{0.605}/\num{0.631}), a deliberate
+recall-for-precision trade that a screening tool should make. The prior is demonstrably used: the trained gate strengths
 $\alpha_s = \{1.38, 1.42, 1.17, 1.17\}$ (coarse to fine) are all positive and near one, so
 the attention map roughly doubles the modulated skip features wherever the spectral evidence
 is strong. As an independent check of what the prior encodes, we use the gate's attention map
 directly as a pixel-wise foreground detector: against the test-split masks it reaches an
-ROC-AUC of \num{0.638} ($n=\num{3.2}$\,M pixels, a systematic 1-in-13 subsample across
-\num{64} test batches)---well above chance ($0.5$) but well short of a standalone segmenter, in line with its role as a soft, spectrally-grounded prior that the
-recall-weighted decoder refines rather than a segmentation output on its own.
+ROC-AUC of \num{0.638} ($n=\num{3.2}$\,M pixels, a systematic 1-in-13 subsample of the first
+\num{64} test batches in loader order---about \num{21}\,\% of the split; since the loader is
+not shuffled at evaluation these batches may be regionally clustered, so we read the AUC as
+indicative rather than exact)---well above chance ($0.5$) but well short of a standalone
+segmenter, in line with its role as a soft, spectrally-grounded prior that the recall-weighted
+decoder refines rather than a segmentation output on its own.
 Figure~\ref{fig:ablbars} summarizes the mining-class IoUs across variants.
 
 \begin{figure}[t]
@@ -738,24 +753,24 @@ and the six-band spectral prior are the components that move the mining classes.
 \begin{table}[t]
 \centering
 \caption{Component analysis on the test split. ``Prior'' is the spectral-prior integration
-mode; P/R/F1 are artisanal-class precision, recall and F1; Ind.\ F1 is industrial-class F1;
-small-obj.\ R is small-object component recall ($n=41$; Table~\ref{tab:area}). Best per column
-in \textbf{bold}.}
+mode; IoU/P/R/F1 are artisanal-class metrics; Ind.\ IoU and Ind.\ F1 are the industrial-class
+IoU and F1; small-obj.\ R is small-object component recall ($n=41$; Table~\ref{tab:area}).
+Best per column in \textbf{bold}.}
 \label{tab:ablation}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{3.5pt}
 \begin{adjustbox}{max width=\linewidth}
-\begin{tabular}{l l cc ccc c c}
+\begin{tabular}{l l c cccc cc c}
 \toprule
-Configuration & Prior & mIoU & fg-mIoU & \multicolumn{3}{c}{Artisanal} & Ind. & small-obj.\\
-\cmidrule(lr){5-7}
- & & & & P & R & F1 & F1 & R\\
+Configuration & Prior & mIoU & \multicolumn{4}{c}{Artisanal} & \multicolumn{2}{c}{Industrial} & small-obj.\\
+\cmidrule(lr){4-7}\cmidrule(lr){8-9}
+ & & & IoU & P & R & F1 & IoU & F1 & R\\
 \midrule
-Backbone + cross-entropy    & ---            & 0.584 & 0.422 & 0.599 & 0.573 & 0.586 & 0.602 & 0.366 \\
-\;+ recall-weighted loss    & ---            & 0.598 & 0.442 & \best{0.605} & 0.605 & 0.605 & 0.621 & 0.463 \\
-\;+ PISP (concat)           & concat, 6-band & 0.590 & 0.432 & 0.562 & 0.611 & 0.586 & 0.621 & \best{0.610} \\
-\;+ PISP gate + edge (full) & gate, 6-band   & 0.572 & 0.409 & 0.431 & \best{0.748} & 0.546 & 0.613 & 0.537 \\
-\;\;\;RGB prior variant     & gate, 3-band   & \best{0.620} & \best{0.471} & 0.587 & 0.681 & \best{0.631} & \best{0.649} & 0.439 \\
+Backbone + cross-entropy    & ---            & 0.584 & 0.414 & 0.599 & 0.573 & 0.586 & 0.430 & 0.602 & 0.366 \\
+\;+ recall-weighted loss    & ---            & 0.598 & 0.434 & \best{0.605} & 0.605 & 0.605 & 0.450 & 0.621 & 0.463 \\
+\;+ PISP (concat)           & concat, 6-band & 0.590 & 0.414 & 0.562 & 0.611 & 0.586 & 0.450 & 0.621 & \best{0.610} \\
+\;+ PISP gate + edge (full) & gate, 6-band   & 0.572 & 0.376 & 0.431 & \best{0.748} & 0.546 & 0.442 & 0.613 & 0.537 \\
+\;\;\;RGB prior variant     & gate, 3-band   & \best{0.620} & \best{0.461} & 0.587 & 0.681 & \best{0.631} & \best{0.480} & \best{0.649} & 0.439 \\
 \bottomrule
 \end{tabular}
 \end{adjustbox}
@@ -766,7 +781,7 @@ For Table~\ref{tab:gen} we withhold Asia and Oceania from training and test on t
 gated model scores \num{0.734} mIoU on the held-out continents against \num{0.618}
 in-region---but we resist reading the higher out-of-region number as positive transfer.
 Holding out Asia and Oceania drops \num{51}\,\% of the chips (and \num{52}\,\% of the
-artisanal chips), so the two partitions differ in size and in class and object-size mix
+artisanal chips), so the two partitions differ in size and in class composition
 (Table~\ref{tab:region}). For the same reason the in-region \num{0.618} is not comparable to
 the \num{0.572} of Table~\ref{tab:main}, which was trained on every region. What we can
 safely say is modest: accuracy does not \emph{collapse} on two unseen continents, so this
@@ -857,10 +872,10 @@ sample scene.
 \centering
 \includegraphics[width=\linewidth]{qualitative}
 \caption{Qualitative predictions and the interpretable PISP attention map on held-out test
-chips. The top rows are successful detections and the bottom rows characteristic failures
-(small, fragmented sites and artisanal/industrial confusions); each row is labelled
-success/failure with its foreground IoU, and the RGB panel carries a \SI{1}{\kilo\metre}
-scale bar (Sentinel-2, \SI{10}{\metre}/pixel).}
+chips. Columns: Sentinel-2 RGB, ground truth, SPEAR-Net prediction, and PISP attention. The
+upper rows are representative correct detections; the lower rows are characteristic failures
+---small, fragmented sites, and artisanal/industrial confusions (the industrial-predicted-as-
+artisanal row illustrates the \num{10.3}\,\% off-diagonal of Figure~\ref{fig:confusion}).}
 \label{fig:qual}
 \end{figure}
 
@@ -879,11 +894,17 @@ chip and ground-truth mask.}
 \paragraph{Interpretation.}
 Two findings carry the paper. The first is a non-result that matters: on the test split our
 \num{1.06}\,M-parameter model matches baselines \num{21}--\num{25}$\times$ its size on mIoU,
-so shrinking the network costs nothing in accuracy here. The second is the useful one. The
-six-band spectral prior recovers more of the hardest small sites than those much larger
-baselines (Table~\ref{tab:area})---the exact regime the ASM-monitoring literature keeps
-flagging as the breaking point. An RGB-only prior does not reproduce the gain, which pins it
-to the NIR/SWIR bands rather than to extra capacity or the gating mechanism on its own. The
+so shrinking the network costs nothing in accuracy here. The second is the useful, though more
+tentative, one. On the hardest small sites the six-band spectral prior---most clearly in its
+concatenated form---recovers more components than those much larger baselines
+(Table~\ref{tab:area}), the exact regime the ASM-monitoring literature keeps flagging as the
+breaking point. We are careful not to overstate it: these are single-seed results, the
+per-bin \num{95}\,\% intervals overlap, and only the concatenated variant's four-component
+lead is robust (the gated variant's one-component lead is within noise); pooled over all
+\num{137} components the concat/gate ordering over the baselines nonetheless holds
+(\num{0.730}/\num{0.701} vs.\ $\leq$\num{0.693}). An RGB-only prior does not reproduce the
+gain, which pins it to the NIR/SWIR bands rather than to extra capacity or the gating
+mechanism on its own. The
 recall-oriented objective pulls its weight too: it raises recall over a plain cross-entropy
 backbone and keeps both mining scales alive instead of letting the network collapse to
 background.
@@ -919,7 +940,12 @@ small site (many are below $\sim$\num{10}\,ha) is not evidence of absence. What 
 the output policy-relevant is the verified artisanal-versus-industrial distinction, since the
 two scales carry very different regulatory and environmental consequences. In deployment an
 agency would set the decision threshold to its own inspection capacity---trading recall
-against false-alarm load---rather than accept the single operating point we report.
+against false-alarm load---rather than accept the single operating point we report. The most
+operationally meaningful missing number is a \emph{component-level} false-positive rate---how
+many spurious sites an inspector is dispatched to per real one, obtained by counting connected
+components of the predicted mining mask that have no ground-truth overlap. It is computable
+from the predictions we already store, and we flag it as the immediate next step for turning
+this screening tool into a costed inspection workflow.
 
 \paragraph{Responsible use.}
 Artisanal mining is, for many communities, a primary livelihood, and its mapping is
@@ -939,12 +965,15 @@ compositing, are natural extensions.
 \paragraph{Limitations.}
 Beyond the above: (i) results are single-seed---the large efficiency and small-object gaps
 are unambiguous, but the sub-\num{0.02} mIoU differences among compact variants should be
-read as comparable, and multi-seed variance would strengthen the claims; (ii) we did not
-train an efficiency-oriented baseline, so the compute numbers are a profile, not a
-comparison against other compact models; (iii) the test split is small
-($\approx$\num{101} tiles actually contribute chips, of the \num{116} that carry a split) and,
-like training, class-imbalanced but in the opposite direction (Table~\ref{tab:data}), which
-the reader should weigh when interpreting per-class figures;
+read as comparable, and multi-seed variance would strengthen the claims; (ii) although row A1
+(MobileNetV3-Small backbone) is a compact baseline at our own \num{1.06}\,M parameters, we did
+not train an \emph{alternative} efficient architecture (e.g.\ LR-ASPP or EfficientNet-lite),
+so the compute numbers are a profile, not a comparison across compact designs; (iii) the
+diagnostic in Table~\ref{tab:area} rests on only \num{137} ground-truth components
+($\num{41}/\num{59}/\num{37}$ by size), drawn from the $\approx$\num{101} tiles that actually
+contribute test chips (of the \num{116} that carry a split), and---like training---the split
+is class-imbalanced in the opposite direction (Table~\ref{tab:data}), which the reader should
+weigh when interpreting per-class and per-bin figures;
 (iv) the generalization evidence is a single, composition-unmatched continent hold-out; and
 (v) the edge stream is bundled with the gate in the only configuration that includes it and
 the Tversky $(\alpha,\beta)$ were not swept, so neither is independently isolated.
@@ -956,9 +985,14 @@ artisanal mining apart from industrial mining in globally distributed Sentinel-2
 a held-out test split it matches convolutional baselines \num{21}--\num{25}$\times$ larger
 and \num{26}--\num{62}$\times$ more costly on mIoU, recovers both mining scales without
 collapsing to background, and gives the highest recall on the policy-critical artisanal
-class. Its strongest positive result lands where it matters most: the six-band spectral
-prior recovers more of the hardest small ($<32^2$\,px) sites than the much larger baselines,
-and an RGB-only prior does not---which isolates the value of the NIR/SWIR bands. The
+class. Its most useful result lands where it matters most, though we state it carefully: on
+the hardest small ($<32^2$\,px) sites the six-band prior---clearly in its concatenated
+form---recovers more components than the much larger baselines, while an RGB-only prior does
+not, which isolates the value of the NIR/SWIR bands. On \num{41} small components these
+single-seed margins are not yet statistically separable (the concatenated lead is the largest
+and most consistent, the gated lead is within noise), but pooled over all \num{137} components
+the ordering over the baselines holds; confirming it with multiple seeds and a paired test is
+the clearest next step. The
 efficiency advantage is real but selective. It shows up in parameters, FLOPs, CPU latency
 and memory, not in GPU throughput, so the deployment case is edge and free-tier screening
 rather than raw speed. We report all of this alongside a frank account of what remains open:
