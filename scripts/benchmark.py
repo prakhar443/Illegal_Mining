@@ -25,7 +25,7 @@ from spearnet.models import build_model
 from spearnet.utils import measure_efficiency
 
 # One Sentinel-2 tile at 10 m ~ 10,980^2 px; non-overlapping 256^2 chips:
-CHIPS_PER_S2_TILE = (10980 // 256) ** 2   # = 1849
+CHIPS_PER_S2_TILE = 43 ** 2   # ceil(10980/256)=43 -> 1849 chips for full tile coverage
 
 
 def _profile(cfg, name, device, iters):
