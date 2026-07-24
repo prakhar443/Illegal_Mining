@@ -159,7 +159,7 @@ def confusion(out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="paper/figures")
+    ap.add_argument("--out", default="figures")
     args = ap.parse_args()
     _style(); os.makedirs(args.out, exist_ok=True)
     area_recall(args.out); efficiency(args.out); ablation(args.out)
